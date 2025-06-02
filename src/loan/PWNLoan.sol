@@ -119,10 +119,10 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         bytes data;
     }
 
-    /** Mapping of lender repayment hook data per loan id.*/
+    /** @notice Mapping of lender repayment hook data per loan id.*/
     mapping (address => mapping (uint256 => LenderRepaymentHookData)) public lenderRepaymentHook;
 
-    // todo: update solc and use transient storage
+    /** @notice Mapping of loan id to whether the loan context is locked.*/
     mapping (uint256 => bool) public loanLock;
 
 
