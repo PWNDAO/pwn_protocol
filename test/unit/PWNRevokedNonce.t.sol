@@ -6,7 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import {
     PWNRevokedNonce,
     PWNHubTags
-} from "pwn/proposal/auxiliary/PWNRevokedNonce.sol";
+} from "pwn/periphery/proposal/auxiliary/PWNRevokedNonce.sol";
 
 
 abstract contract PWNRevokedNonceTest is Test {

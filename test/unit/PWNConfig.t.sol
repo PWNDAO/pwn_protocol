@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import { Test } from "forge-std/Test.sol";
 
-import { PWNConfig } from "pwn/config/PWNConfig.sol";
+import { PWNConfig } from "pwn/core/config/PWNConfig.sol";
 
 
 abstract contract PWNConfigTest is Test {

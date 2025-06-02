@@ -8,25 +8,31 @@ import { MultiTokenCategoryRegistry } from "MultiToken/MultiTokenCategoryRegistr
 
 import { Strings } from "openzeppelin/utils/Strings.sol";
 
-import { PWNConfig } from "pwn/config/PWNConfig.sol";
-import { PWNHub } from "pwn/hub/PWNHub.sol";
-import { PWNHubTags } from "pwn/hub/PWNHubTags.sol";
-import { IChainlinkFeedRegistryLike } from "pwn/interfaces/IChainlinkFeedRegistryLike.sol";
-import { IPWNDeployer } from "pwn/interfaces/IPWNDeployer.sol";
-import { PWNLoan } from "pwn/loan/PWNLoan.sol";
-import { PWNDurationDefaultModule } from "pwn/loan/module/default/PWNDurationDefaultModule.sol";
-import { PWNStableInterestModule } from "pwn/loan/module/interest/PWNStableInterestModule.sol";
-import { PWNSimpleProposal } from "pwn/proposal/PWNSimpleProposal.sol";
-import { PWNListProposal } from "pwn/proposal/PWNListProposal.sol";
-import { PWNElasticChainlinkProposal } from "pwn/proposal/PWNElasticChainlinkProposal.sol";
-import { PWNElasticProposal } from "pwn/proposal/PWNElasticProposal.sol";
-import { PWNDutchAuctionProposal } from "pwn/proposal/PWNDutchAuctionProposal.sol";
-import { PWNUniswapV3LPIndividualProposal } from "pwn/proposal/PWNUniswapV3LPIndividualProposal.sol";
-import { PWNUniswapV3LPSetProposal } from "pwn/proposal/PWNUniswapV3LPSetProposal.sol";
-import { PWNLOAN } from "pwn/token/PWNLOAN.sol";
-import { PWNRevokedNonce } from "pwn/proposal/auxiliary/PWNRevokedNonce.sol";
-import { PWNUtilizedCredit } from "pwn/proposal/auxiliary/PWNUtilizedCredit.sol";
+import { PWNConfig } from "pwn/core/config/PWNConfig.sol";
+import { PWNHub } from "pwn/core/hub/PWNHub.sol";
+import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
+import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
+import { PWNLOAN } from "pwn/core/token/PWNLOAN.sol";
+import { IChainlinkFeedRegistryLike } from "pwn/periphery/interfaces/IChainlinkFeedRegistryLike.sol";
+import { PWNDurationDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
+import { PWNStableInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
+import { PWNSimpleProposal } from "pwn/periphery/proposal/PWNSimpleProposal.sol";
+import { PWNListProposal } from "pwn/periphery/proposal/PWNListProposal.sol";
+import { PWNElasticChainlinkProposal } from "pwn/periphery/proposal/PWNElasticChainlinkProposal.sol";
+import { PWNElasticProposal } from "pwn/periphery/proposal/PWNElasticProposal.sol";
+import { PWNDutchAuctionProposal } from "pwn/periphery/proposal/PWNDutchAuctionProposal.sol";
+import { PWNUniswapV3LPIndividualProposal } from "pwn/periphery/proposal/PWNUniswapV3LPIndividualProposal.sol";
+import { PWNUniswapV3LPSetProposal } from "pwn/periphery/proposal/PWNUniswapV3LPSetProposal.sol";
+import { PWNRevokedNonce } from "pwn/periphery/proposal/auxiliary/PWNRevokedNonce.sol";
+import { PWNUtilizedCredit } from "pwn/periphery/proposal/auxiliary/PWNUtilizedCredit.sol";
 
+
+interface IPWNDeployer {
+    function owner() external returns (address);
+    function deploy(bytes32 salt, bytes memory bytecode) external returns (address);
+    function deployAndTransferOwnership(bytes32 salt, address owner, bytes memory bytecode) external returns (address);
+    function computeAddress(bytes32 salt, bytes32 bytecodeHash) external view returns (address);
+}
 
 abstract contract Deployments is CommonBase {
     using stdJson for string;

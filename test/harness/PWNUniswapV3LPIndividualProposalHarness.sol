@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import {
     PWNUniswapV3LPIndividualProposal
-} from "pwn/proposal/PWNUniswapV3LPIndividualProposal.sol";
+} from "pwn/periphery/proposal/PWNUniswapV3LPIndividualProposal.sol";
 
 
 contract PWNUniswapV3LPIndividualProposalHarness is PWNUniswapV3LPIndividualProposal {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { UniswapV3 } from "pwn/lib/UniswapV3.sol";
+import { UniswapV3 } from "pwn/periphery/lib/UniswapV3.sol";
 
 
 contract UniswapV3Harness {

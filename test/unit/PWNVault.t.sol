@@ -9,7 +9,7 @@ import {
     IERC721Receiver,
     IERC1155Receiver,
     PWNVault
-} from "pwn/loan/PWNVault.sol";
+} from "pwn/core/loan/PWNVault.sol";
 
 import { PWNVaultHarness } from "test/harness/PWNVaultHarness.sol";
 import { DummyPoolAdapter } from "test/helper/DummyPoolAdapter.sol";

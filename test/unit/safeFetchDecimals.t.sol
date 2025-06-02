@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import { Test } from "forge-std/Test.sol";
 
-import { safeFetchDecimals } from "pwn/utils/safeFetchDecimals.sol";
+import { safeFetchDecimals } from "pwn/periphery/utils/safeFetchDecimals.sol";
 
 
 contract SafeFetchDecimalsTest is Test {

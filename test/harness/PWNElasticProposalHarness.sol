@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import {
     PWNElasticProposal
-} from "pwn/proposal/PWNElasticProposal.sol";
+} from "pwn/periphery/proposal/PWNElasticProposal.sol";
 
 
 contract PWNElasticProposalHarness is PWNElasticProposal {

@@ -6,7 +6,7 @@ import { Test, console2 } from "forge-std/Test.sol";
 import {
     UniswapV3,
     INonfungiblePositionManager
-} from "pwn/lib/UniswapV3.sol";
+} from "pwn/periphery/lib/UniswapV3.sol";
 
 import { UniswapV3Harness } from "test/harness/UniswapV3Harness.sol";
 
