@@ -295,10 +295,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         // Initialize modules
         _initializeModule(loanTerms.interestModule, INTEREST_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.interestModuleProposerData);
         _initializeModule(loanTerms.defaultModule, DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.defaultModuleProposerData);
-        if (loanTerms.liquidationModule != address(0)) {
-            // Initialize liquidation module only if it is set
-            _initializeModule(loanTerms.liquidationModule, LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.liquidationModuleProposerData);
-        }
+        _initializeModule(loanTerms.liquidationModule, LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.liquidationModuleProposerData);
 
         // Check that loan is not defaulted on creation
         if (IPWNDefaultModule(loanTerms.defaultModule).isDefaulted(address(this), loanId)) {
@@ -593,20 +590,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
      */
     function liquidate(uint256 loanId, uint256 liquidationAmount) external nonLoanContextReentrant(loanId) {
         if (address(LOANs[loanId].liquidationModule) != msg.sender) revert CallerNotLiquidationModule();
-        _liquidate(loanId, liquidationAmount);
-    }
 
-    /**
-     * @notice Liquidate a defaulted loan by a loan owner.
-     * @param loanId Id of a loan that is being liquidated.
-     */
-    function liquidateByOwner(uint256 loanId) external nonLoanContextReentrant(loanId) {
-        if (address(LOANs[loanId].liquidationModule) != address(0)) revert CallerNotLiquidationModule();
-        if (loanToken.ownerOf(loanId) != msg.sender) revert CallerNotLOANTokenHolder();
-        _liquidate(loanId, 0);
-    }
-
-    function _liquidate(uint256 loanId, uint256 liquidationAmount) internal {
         uint8 status = getLOANStatus(loanId);
         if (status != LOANStatus.DEFAULTED) revert LoanNotDefaulted();
 
