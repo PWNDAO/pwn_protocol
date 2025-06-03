@@ -3,9 +3,7 @@ pragma solidity 0.8.16;
 
 import { IPWNModuleInitializationHook } from "pwn/core/loan/module/IPWNModuleInitializationHook.sol";
 
-
 bytes32 constant INTEREST_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNInterestModule.onLoanCreated");
-
 
 /**
  * @title IPWNInterestModule
@@ -23,12 +21,11 @@ bytes32 constant INTEREST_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNInterest
 interface IPWNInterestModule is IPWNModuleInitializationHook {
     /**
      * @notice Returns the interest accrued for a loan since its last update.
+     * @dev The implementation must fetch the `lastUpdateTimestamp` from the loan contract
+     * and calculate interest only for the period after this timestamp.
      * @param loanContract The address of the PWNLoan contract managing the loan.
      * @param loanId The unique identifier of the loan.
      * @return The amount of interest accrued since the last update timestamp.
-     *
-     * @dev The implementation must fetch the `lastUpdateTimestamp` from the loan contract
-     * and calculate interest only for the period after this timestamp.
      */
     function interest(address loanContract, uint256 loanId) external view returns (uint256);
 }

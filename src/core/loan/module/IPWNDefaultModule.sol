@@ -3,9 +3,7 @@ pragma solidity 0.8.16;
 
 import { IPWNModuleInitializationHook } from "pwn/core/loan/module/IPWNModuleInitializationHook.sol";
 
-
 bytes32 constant DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNDefaultModule.onLoanCreated");
-
 
 /**
  * @title IPWNDefaultModule
@@ -23,12 +21,11 @@ bytes32 constant DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNDefaultMo
 interface IPWNDefaultModule is IPWNModuleInitializationHook {
     /**
      * @notice Returns whether the loan is currently in default.
+     * @dev The implementation must fetch relevant loan state from the loan contract
+     * and evaluate default conditions according to the module's logic.
      * @param loanContract The address of the PWNLoan contract managing the loan.
      * @param loanId The unique identifier of the loan.
      * @return True if the loan is in default, false otherwise.
-     *
-     * @dev The implementation must fetch relevant loan state from the loan contract
-     * and evaluate default conditions according to the module's logic.
      */
     function isDefaulted(address loanContract, uint256 loanId) external view returns (bool);
 }

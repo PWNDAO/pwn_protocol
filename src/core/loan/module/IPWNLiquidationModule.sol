@@ -5,9 +5,7 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 
 import { IPWNModuleInitializationHook } from "pwn/core/loan/module/IPWNModuleInitializationHook.sol";
 
-
 bytes32 constant LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNLiquidationModule.onLoanCreated");
-
 
 /**
  * @title IPWNLiquidationModule
