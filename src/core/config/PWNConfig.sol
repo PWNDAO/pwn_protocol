@@ -3,7 +3,6 @@ pragma solidity 0.8.16;
 
 import { Ownable2StepUpgradeable } from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 
-import { IPoolAdapter } from "pwn/core/config/IPoolAdapter.sol";
 import { IStateFingerpringComputer } from "pwn/core/config/IStateFingerpringComputer.sol";
 
 
@@ -41,7 +40,10 @@ contract PWNConfig is Ownable2StepUpgradeable {
     /** @notice Mapping holding registered state fingerprint computer to an asset.*/
     mapping (address => address) private _sfComputerRegistry;
 
-    /** @notice Mapping holding registered pool adapter to a pool address.*/
+    /**
+     * @notice Mapping holding registered pool adapter to a pool address.
+     * @dev Deprecated.
+     */
     mapping (address => address) private _poolAdapterRegistry;
 
 
@@ -202,29 +204,6 @@ contract PWNConfig is Ownable2StepUpgradeable {
                 revert InvalidComputerContract({ computer: computer, asset: asset });
 
         _sfComputerRegistry[asset] = computer;
-    }
-
-
-    /*----------------------------------------------------------*|
-    |*  # POOL ADAPTER                                          *|
-    |*----------------------------------------------------------*/
-
-    /**
-     * @notice Returns the pool adapter for a given pool.
-     * @param pool The pool for which the adapter is requested.
-     * @return The adapter for the given pool.
-     */
-    function getPoolAdapter(address pool) external view returns (IPoolAdapter) {
-        return IPoolAdapter(_poolAdapterRegistry[pool]);
-    }
-
-    /**
-     * @notice Registers a pool adapter for a given pool.
-     * @param pool The pool for which the adapter is registered.
-     * @param adapter The adapter to be registered.
-     */
-    function registerPoolAdapter(address pool, address adapter) external onlyOwner {
-        _poolAdapterRegistry[pool] = adapter;
     }
 
 }

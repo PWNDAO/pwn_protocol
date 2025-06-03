@@ -12,7 +12,6 @@ import {
 } from "pwn/core/loan/PWNVault.sol";
 
 import { PWNVaultHarness } from "test/harness/PWNVaultHarness.sol";
-import { DummyPoolAdapter } from "test/helper/DummyPoolAdapter.sol";
 import { T20 } from "test/helper/T20.sol";
 import { T721 } from "test/helper/T721.sol";
 
