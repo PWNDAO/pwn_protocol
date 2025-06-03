@@ -72,8 +72,8 @@
         "chainlinkL2SequencerUptimeFeed": "0x0000000000000000000000000000000000000000",
         "weth": "0x4200000000000000000000000000000000000006",
         "isL2": true,
-        "uniswapV3Factory": "0x0000000000000000000000000000000000000000",
-        "uniswapV3NFTPositionManager": "0x0000000000000000000000000000000000000000"
+        "uniswapV3Factory": "0x1f98400000000000000000000000000000000003",
+        "uniswapV3NFTPositionManager": "0x943e6e07a7e8e791dafc44083e54041d743c46e9"
     },
     "137": {
         "dao": "0x0000000000000000000000000000000000000000",
@@ -149,7 +149,9 @@
         "deployer": "0x706c9F2dd328E2C01483eCF705D2D9708F4aB727",
         "chainlinkL2SequencerUptimeFeed": "0x0000000000000000000000000000000000000000",
         "weth": "0x66803FB87aBd4aaC3cbB3fAd7C3aa01f6F3FB207",
-        "isL2": true
+        "isL2": true,
+        "uniswapV3Factory": "0xAfE208a311B21f13EF87E33A90049fC17A7acDEc",
+        "uniswapV3NFTPositionManager": "0x3d79EdAaBC0EaB6F08ED885C05Fc0B014290D95A"
     },
     "57073": {
         "dao": "0x0000000000000000000000000000000000000000",
