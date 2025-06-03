@@ -586,28 +586,45 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
      * @notice Liquidate a defaulted loan by a liquidation module.
      * @dev The liquidation module can use any amount of credit asset to be repaid to lender for the liquidation.
      * @param loanId Id of a loan that is being liquidated.
-     * @param liquidationAmount Amount of a credit asset to be repaid to lender for the liquidation.
+     * @param data Additional data passed to the liquidation module.
      */
-    function liquidate(uint256 loanId, uint256 liquidationAmount) external nonLoanContextReentrant(loanId) {
-        if (address(LOANs[loanId].liquidationModule) != msg.sender) revert CallerNotLiquidationModule();
-
+    function liquidate(uint256 loanId, bytes calldata data) external nonLoanContextReentrant(loanId) {
         uint8 status = getLOANStatus(loanId);
         if (status != LOANStatus.DEFAULTED) revert LoanNotDefaulted();
 
         LOAN storage loan = LOANs[loanId];
 
+        // Get debt before updating the loan
+        uint256 debt = getLOANDebt(loanId);
+
+        // Update loan data
         loan.pastAccruedInterest = 0;
         loan.principal = 0;
         loan.lastUpdateTimestamp = uint40(block.timestamp);
 
-        emit LOANLiquidated({ loanId: loanId, liquidator: msg.sender, liquidationAmount: liquidationAmount });
+        IPWNLiquidationModule liquidationModule = loan.liquidationModule;
 
+        // Execute liquidation
+        _push(loan.collateral, address(liquidationModule));
+        uint256 liquidationAmount = liquidationModule.liquidate({
+            loanId: loanId,
+            liquidator: msg.sender,
+            debt: debt,
+            creditAddress: loan.creditAddress,
+            collateral: loan.collateral,
+            data: data
+        });
         if (liquidationAmount > 0) {
-            _settleRepayment(loanId, msg.sender, loan.creditAddress, liquidationAmount);
+            _settleRepayment(loanId, address(liquidationModule), loan.creditAddress, liquidationAmount);
         }
-        _push(loan.collateral, msg.sender);
 
-        if (getLOANStatus(loanId) == LOANStatus.DEAD) {
+        emit LOANLiquidated({
+            loanId: loanId,
+            liquidator: address(liquidationModule),
+            liquidationAmount: liquidationAmount
+        });
+
+        if (loan.unclaimedRepayment == 0) {
             _deleteLoan(loanId);
         }
     }

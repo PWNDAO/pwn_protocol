@@ -396,7 +396,7 @@ contract PWNLoanIntegrationTest is BaseIntegrationTest {
 
         // Claim defaulted loan
         vm.prank(lender);
-        __d.loan.liquidate(loanId, 0); // todo:
+        __d.loan.liquidate(loanId, ""); // todo:
 
         // Assert final state
         vm.expectRevert("ERC721: invalid token ID");

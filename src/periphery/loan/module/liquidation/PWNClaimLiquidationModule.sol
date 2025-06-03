@@ -11,22 +11,30 @@ contract PWNClaimLiquidationModule is IPWNLiquidationModule {
     using MultiToken for address;
     using MultiToken for MultiToken.Asset;
 
-    error CallerNotLoanOwner(address owner, address caller, address loanContract, uint256 loanId);
+    error LiquidatorNotLoanOwner(address owner, address liquidator, address loanContract, uint256 loanId);
+    error LiquidationDataNotEmpty();
 
     function onLoanCreated(uint256 /* loanId */, bytes calldata /* proposerData */) external pure returns (bytes32) {
         return LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE;
     }
 
     /** @dev LOAN owner can claim defaulted loan collateral.*/
-    function liquidate(address loanContract, uint256 loanId) external {
+    function liquidate(
+        uint256 loanId,
+        address liquidator,
+        uint256 /* debt */,
+        address /* creditAddress */,
+        MultiToken.Asset calldata collateral,
+        bytes calldata data
+    ) external returns (uint256) {
+        address loanContract = msg.sender;
         address loanOwner = PWNLoan(loanContract).loanToken().ownerOf(loanId);
-        if (loanOwner != msg.sender) {
-            revert CallerNotLoanOwner(loanOwner, msg.sender, loanContract, loanId);
-        }
-        PWNLoan.LOAN memory loan = PWNLoan(loanContract).getLOAN(loanId);
+        if (loanOwner != liquidator) revert LiquidatorNotLoanOwner(loanOwner, liquidator, loanContract, loanId);
+        if (data.length != 0) revert LiquidationDataNotEmpty();
 
-        PWNLoan(loanContract).liquidate(loanId, 0);
-        loan.collateral.transferAssetFrom(address(this), msg.sender);
+        collateral.transferAssetFrom(address(this), loanOwner);
+
+        return 0;
     }
 
 }
