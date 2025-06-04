@@ -708,7 +708,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
      */
     function getLOANDebt(uint256 loanId) public view returns (uint256) {
         LOAN storage loan = LOANs[loanId];
-        return loan.principal + loan.interestModule.interest(address(this), loanId);
+        return loan.principal + loan.pastAccruedInterest + loan.interestModule.interest(address(this), loanId);
     }
 
 

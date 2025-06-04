@@ -14,6 +14,10 @@ bytes32 constant INTEREST_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNInterest
  * The module must use the `lastUpdateTimestamp` (fetched from the loan contract at the provided address)
  * to ensure only interest accrued since the last update is returned.
  *
+ * Implementations do not have to account for unpaid accrued interest before the last update, as it is added to the total debt
+ * by the loan contract. If the implementation computes interest only from the principal amount, it can safely ignore previously accrued interest.
+ * Only if the module's logic requires it for its own computation should it consider previously accrued interest.
+ *
  * The module must also implement the `onLoanCreated` initialization hook, which is called by PWNLoan
  * at loan origination to configure the module for the specific loan. The hook must return a
  * keccak256 hash of "PWNInterestModule.onLoanCreated".
