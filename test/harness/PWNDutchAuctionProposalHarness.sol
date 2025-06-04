@@ -14,8 +14,9 @@ contract PWNDutchAuctionProposalHarness is PWNDutchAuctionProposal {
         address _config,
         address _utilizedCredit,
         address _interestModule,
-        address _defaultModule
-    ) PWNDutchAuctionProposal(_hub, _revokedNonce, _config, _utilizedCredit, _interestModule, _defaultModule) {}
+        address _defaultModule,
+        address _liquidationModule
+    ) PWNDutchAuctionProposal(_hub, _revokedNonce, _config, _utilizedCredit, _interestModule, _defaultModule, _liquidationModule) {}
 
 
     function exposed_erc712EncodeProposal(Proposal memory proposal) external pure returns (bytes memory) {

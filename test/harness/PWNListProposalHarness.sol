@@ -14,8 +14,9 @@ contract PWNListProposalHarness is PWNListProposal {
         address _config,
         address _utilizedCredit,
         address _interestModule,
-        address _defaultModule
-    ) PWNListProposal(_hub, _revokedNonce, _config, _utilizedCredit, _interestModule, _defaultModule) {}
+        address _defaultModule,
+        address _liquidationModule
+    ) PWNListProposal(_hub, _revokedNonce, _config, _utilizedCredit, _interestModule, _defaultModule, _liquidationModule) {}
 
 
     function exposed_erc712EncodeProposal(Proposal memory proposal) external pure returns (bytes memory) {

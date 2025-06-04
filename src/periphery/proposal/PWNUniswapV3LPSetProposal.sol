@@ -14,8 +14,9 @@ import {
     UniswapV3,
     INonfungiblePositionManager
 } from "pwn/periphery/lib/UniswapV3.sol";
-import { PWNStableInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
-import { PWNDurationDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
+import { PWNStableInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
+import { PWNDurationDefaultModule, IPWNDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
+import { PWNClaimLiquidationModule, IPWNLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
 import { PWNBaseProposal, Terms } from "pwn/periphery/proposal/PWNBaseProposal.sol";
 
 
@@ -41,6 +42,8 @@ contract PWNUniswapV3LPSetProposal is PWNBaseProposal {
     PWNStableInterestModule public immutable interestModule;
     /** @notice Duration based default module used in the proposal.*/
     PWNDurationDefaultModule public immutable defaultModule;
+    /** @notice LOAN owner claim liquidation module used in the proposal.*/
+    PWNClaimLiquidationModule public immutable liquidationModule;
     /** @notice Uniswap V3 factory contract.*/
     address public immutable uniswapV3Factory;
     /** @notice Uniswap V3 NFT position manager contract.*/
@@ -135,14 +138,16 @@ contract PWNUniswapV3LPSetProposal is PWNBaseProposal {
         address _utilizedCredit,
         address _interestModule,
         address _defaultModule,
+        address _liquidationModule,
         address _uniswapV3Factory,
         address _uniswapNFTPositionManager,
         address _chainlinkFeedRegistry,
         address _chainlinkL2SequencerUptimeFeed,
         address _weth
-    ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNSimpleLoanUniswapV3LPSetProposal", VERSION) {
+    ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNUniswapV3LPSetProposal", VERSION) {
         interestModule = PWNStableInterestModule(_interestModule);
         defaultModule = PWNDurationDefaultModule(_defaultModule);
+        liquidationModule = PWNClaimLiquidationModule(_liquidationModule);
         uniswapV3Factory = _uniswapV3Factory;
         uniswapNFTPositionManager = INonfungiblePositionManager(_uniswapNFTPositionManager);
         chainlinkFeedRegistry = IChainlinkFeedRegistryLike(_chainlinkFeedRegistry);
@@ -289,11 +294,11 @@ contract PWNUniswapV3LPSetProposal is PWNBaseProposal {
             collateral: address(uniswapNFTPositionManager).ERC721(acceptorValues.collateralId),
             creditAddress: proposal.creditAddress,
             principal: creditAmount,
-            interestModule: address(interestModule),
+            interestModule: IPWNInterestModule(interestModule),
             interestModuleProposerData: abi.encode(PWNStableInterestModule.ProposerData(proposal.interestAPR)),
-            defaultModule: address(defaultModule),
+            defaultModule: IPWNDefaultModule(defaultModule),
             defaultModuleProposerData: abi.encode(PWNDurationDefaultModule.ProposerData(proposal.duration)),
-            liquidationModule: address(0),
+            liquidationModule: IPWNLiquidationModule(liquidationModule),
             liquidationModuleProposerData: ""
         });
     }

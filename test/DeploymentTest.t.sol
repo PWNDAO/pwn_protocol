@@ -101,7 +101,8 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.config),
             address(__d.utilizedCredit),
             address(__d.stableInterestModule),
-            address(__d.durationDefaultModule)
+            address(__d.durationDefaultModule),
+            address(__d.claimLiquidationModule)
         );
         __d.listProposal = new PWNListProposal(
             address(__d.hub),
@@ -109,7 +110,8 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.config),
             address(__d.utilizedCredit),
             address(__d.stableInterestModule),
-            address(__d.durationDefaultModule)
+            address(__d.durationDefaultModule),
+            address(__d.claimLiquidationModule)
         );
         __d.elasticChainlinkProposal = new PWNElasticChainlinkProposal(
             address(__d.hub),
@@ -118,6 +120,7 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.utilizedCredit),
             address(__d.stableInterestModule),
             address(__d.durationDefaultModule),
+            address(__d.claimLiquidationModule),
             address(__d.chainlinkFeedRegistry),
             __e.chainlinkL2SequencerUptimeFeed,
             __e.weth
@@ -128,7 +131,8 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.config),
             address(__d.utilizedCredit),
             address(__d.stableInterestModule),
-            address(__d.durationDefaultModule)
+            address(__d.durationDefaultModule),
+            address(__d.claimLiquidationModule)
         );
         __d.dutchAuctionProposal = new PWNDutchAuctionProposal(
             address(__d.hub),
@@ -136,7 +140,8 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.config),
             address(__d.utilizedCredit),
             address(__d.stableInterestModule),
-            address(__d.durationDefaultModule)
+            address(__d.durationDefaultModule),
+            address(__d.claimLiquidationModule)
         );
         __d.uniswapV3LPIndividualProposal = new PWNUniswapV3LPIndividualProposal(
             address(__d.hub),
@@ -145,6 +150,7 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.utilizedCredit),
             address(__d.stableInterestModule),
             address(__d.durationDefaultModule),
+            address(__d.claimLiquidationModule),
             __e.uniswapV3Factory,
             __e.uniswapV3NFTPositionManager,
             address(__d.chainlinkFeedRegistry),
@@ -158,6 +164,7 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.utilizedCredit),
             address(__d.stableInterestModule),
             address(__d.durationDefaultModule),
+            address(__d.claimLiquidationModule),
             __e.uniswapV3Factory,
             __e.uniswapV3NFTPositionManager,
             address(__d.chainlinkFeedRegistry),
@@ -166,7 +173,7 @@ abstract contract DeploymentTest is Deployments, Test {
         );
 
         // Set hub tags
-        address[] memory addrs = new address[](18);
+        address[] memory addrs = new address[](19);
         addrs[0] = address(__d.loan);
         addrs[1] = address(__d.loan);
 
@@ -193,8 +200,9 @@ abstract contract DeploymentTest is Deployments, Test {
 
         addrs[16] = address(__d.stableInterestModule);
         addrs[17] = address(__d.durationDefaultModule);
+        addrs[18] = address(__d.claimLiquidationModule);
 
-        bytes32[] memory tags = new bytes32[](18);
+        bytes32[] memory tags = new bytes32[](19);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
         tags[1] = PWNHubTags.NONCE_MANAGER;
 
@@ -221,6 +229,7 @@ abstract contract DeploymentTest is Deployments, Test {
 
         tags[16] = PWNHubTags.MODULE;
         tags[17] = PWNHubTags.MODULE;
+        tags[18] = PWNHubTags.MODULE;
 
         vm.prank(__e.protocolTimelock);
         __d.hub.setTags(addrs, tags, true);

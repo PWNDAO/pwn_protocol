@@ -3,6 +3,10 @@ pragma solidity 0.8.16;
 
 import { MultiToken } from "MultiToken/MultiToken.sol";
 
+import { IPWNInterestModule } from "pwn/core/loan/module/IPWNInterestModule.sol";
+import { IPWNDefaultModule } from "pwn/core/loan/module/IPWNDefaultModule.sol";
+import { IPWNLiquidationModule } from "pwn/core/loan/module/IPWNLiquidationModule.sol";
+
 
 /**
  * @notice Struct defining loan terms.
@@ -19,7 +23,7 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
  * @param interestModuleProposerData Proposer data passed to an interest module when a loan is created.
  * @param defaultModule Address of a default module. It is a contract which defines the default conditions.
  * @param defaultModuleProposerData Proposer data passed to a default module when a loan is created.
- * @param liquidationModule Address that can call liquidation for defaulted loans.
+ * @param liquidationModule Address of a liquidation module. It is a contract which defines the liquidation logic.
  * @param liquidationModuleProposerData Proposer data passed to a liquidation module when a loan is created.
  */
 struct LoanTerms {
@@ -30,10 +34,10 @@ struct LoanTerms {
     MultiToken.Asset collateral;
     address creditAddress;
     uint256 principal;
-    address interestModule;
+    IPWNInterestModule interestModule;
     bytes interestModuleProposerData;
-    address defaultModule;
+    IPWNDefaultModule defaultModule;
     bytes defaultModuleProposerData;
-    address liquidationModule;
+    IPWNLiquidationModule liquidationModule;
     bytes liquidationModuleProposerData;
 }

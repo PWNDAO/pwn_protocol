@@ -15,6 +15,7 @@ contract PWNElasticChainlinkProposalHarness is PWNElasticChainlinkProposal {
         address _utilizedCredit,
         address _interestModule,
         address _defaultModule,
+        address _liquidationModule,
         address _chainlinkFeedRegistry,
         address _l2SequencerUptimeFeed,
         address _weth
@@ -25,6 +26,7 @@ contract PWNElasticChainlinkProposalHarness is PWNElasticChainlinkProposal {
         _utilizedCredit,
         _interestModule,
         _defaultModule,
+        _liquidationModule,
         _chainlinkFeedRegistry,
         _l2SequencerUptimeFeed,
         _weth

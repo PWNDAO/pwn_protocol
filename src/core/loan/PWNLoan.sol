@@ -265,9 +265,9 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         loan.creditAddress = loanTerms.creditAddress;
         loan.principal = loanTerms.principal;
         loan.collateral = loanTerms.collateral;
-        loan.interestModule = IPWNInterestModule(loanTerms.interestModule);
-        loan.defaultModule = IPWNDefaultModule(loanTerms.defaultModule);
-        loan.liquidationModule = IPWNLiquidationModule(loanTerms.liquidationModule);
+        loan.interestModule = loanTerms.interestModule;
+        loan.defaultModule = loanTerms.defaultModule;
+        loan.liquidationModule = loanTerms.liquidationModule;
 
         // Lock loan context to prevent reentrancy
         _lockLoanContext(loanId);
@@ -293,9 +293,9 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         // Note: !! DANGER ZONE !!
 
         // Initialize modules
-        _initializeModule(loanTerms.interestModule, INTEREST_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.interestModuleProposerData);
-        _initializeModule(loanTerms.defaultModule, DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.defaultModuleProposerData);
-        _initializeModule(loanTerms.liquidationModule, LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.liquidationModuleProposerData);
+        _initializeModule(address(loanTerms.interestModule), INTEREST_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.interestModuleProposerData);
+        _initializeModule(address(loanTerms.defaultModule), DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.defaultModuleProposerData);
+        _initializeModule(address(loanTerms.liquidationModule), LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.liquidationModuleProposerData);
 
         // Check that loan is not defaulted on creation
         if (IPWNDefaultModule(loanTerms.defaultModule).isDefaulted(address(this), loanId)) {

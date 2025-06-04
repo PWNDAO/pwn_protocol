@@ -3,8 +3,9 @@ pragma solidity 0.8.16;
 
 import { MultiToken } from "MultiToken/MultiToken.sol";
 
-import { PWNStableInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
-import { PWNDurationDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
+import { PWNStableInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
+import { PWNDurationDefaultModule, IPWNDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
+import { PWNClaimLiquidationModule, IPWNLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
 import { PWNBaseProposal, Terms } from "pwn/periphery/proposal/PWNBaseProposal.sol";
 
 
@@ -25,6 +26,8 @@ contract PWNSimpleProposal is PWNBaseProposal {
     PWNStableInterestModule public immutable interestModule;
     /** @notice Duration based default module used in the proposal.*/
     PWNDurationDefaultModule public immutable defaultModule;
+    /** @notice LOAN owner claim liquidation module used in the proposal.*/
+    PWNClaimLiquidationModule public immutable liquidationModule;
 
     /**
      * @notice Construct defining a simple proposal.
@@ -82,10 +85,12 @@ contract PWNSimpleProposal is PWNBaseProposal {
         address _config,
         address _utilizedCredit,
         address _interestModule,
-        address _defaultModule
+        address _defaultModule,
+        address _liquidationModule
     ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNSimpleProposal", VERSION) {
         interestModule = PWNStableInterestModule(_interestModule);
         defaultModule = PWNDurationDefaultModule(_defaultModule);
+        liquidationModule = PWNClaimLiquidationModule(_liquidationModule);
     }
 
     /**
@@ -171,11 +176,11 @@ contract PWNSimpleProposal is PWNBaseProposal {
             }),
             creditAddress: proposal.creditAddress,
             principal: proposal.creditAmount,
-            interestModule: address(interestModule),
+            interestModule: IPWNInterestModule(interestModule),
             interestModuleProposerData: abi.encode(PWNStableInterestModule.ProposerData(proposal.interestAPR)),
-            defaultModule: address(defaultModule),
+            defaultModule: IPWNDefaultModule(defaultModule),
             defaultModuleProposerData: abi.encode(PWNDurationDefaultModule.ProposerData(proposal.duration)),
-            liquidationModule: address(0),
+            liquidationModule: IPWNLiquidationModule(liquidationModule),
             liquidationModuleProposerData: ""
         });
     }

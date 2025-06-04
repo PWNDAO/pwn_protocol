@@ -16,6 +16,7 @@ import { PWNLOAN } from "pwn/core/token/PWNLOAN.sol";
 import { IChainlinkFeedRegistryLike } from "pwn/periphery/interfaces/IChainlinkFeedRegistryLike.sol";
 import { PWNDurationDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
 import { PWNStableInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
+import { PWNClaimLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
 import { PWNSimpleProposal } from "pwn/periphery/proposal/PWNSimpleProposal.sol";
 import { PWNListProposal } from "pwn/periphery/proposal/PWNListProposal.sol";
 import { PWNElasticChainlinkProposal } from "pwn/periphery/proposal/PWNElasticChainlinkProposal.sol";
@@ -49,6 +50,7 @@ abstract contract Deployments is CommonBase {
     struct Deployment {
         MultiTokenCategoryRegistry categoryRegistry;
         IChainlinkFeedRegistryLike chainlinkFeedRegistry;
+        PWNClaimLiquidationModule claimLiquidationModule;
         PWNConfig config;
         PWNConfig configSingleton;
         PWNDurationDefaultModule durationDefaultModule;

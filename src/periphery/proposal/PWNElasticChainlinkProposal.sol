@@ -10,8 +10,9 @@ import {
     IChainlinkFeedRegistryLike,
     IChainlinkAggregatorLike
 } from "pwn/periphery/lib/Chainlink.sol";
-import { PWNStableInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
-import { PWNDurationDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
+import { PWNStableInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
+import { PWNDurationDefaultModule, IPWNDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
+import { PWNClaimLiquidationModule, IPWNLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
 import { PWNBaseProposal, Terms } from "pwn/periphery/proposal/PWNBaseProposal.sol";
 
 
@@ -41,6 +42,8 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
     PWNStableInterestModule public immutable interestModule;
     /** @notice Duration based default module used in the proposal.*/
     PWNDurationDefaultModule public immutable defaultModule;
+    /** @notice LOAN owner claim liquidation module used in the proposal.*/
+    PWNClaimLiquidationModule public immutable liquidationModule;
     /** @notice Chainlink feed registry contract.*/
     IChainlinkFeedRegistryLike public immutable chainlinkFeedRegistry;
     /** @notice Chainlink feed for L2 Sequencer uptime. Must be address(0) for L1s.*/
@@ -122,12 +125,14 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
         address _utilizedCredit,
         address _interestModule,
         address _defaultModule,
+        address _liquidationModule,
         address _chainlinkFeedRegistry,
         address _chainlinkL2SequencerUptimeFeed,
         address _weth
-    ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNSimpleLoanElasticChainlinkProposal", VERSION) {
+    ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNElasticChainlinkProposal", VERSION) {
         interestModule = PWNStableInterestModule(_interestModule);
         defaultModule = PWNDurationDefaultModule(_defaultModule);
+        liquidationModule = PWNClaimLiquidationModule(_liquidationModule);
         chainlinkFeedRegistry = IChainlinkFeedRegistryLike(_chainlinkFeedRegistry);
         chainlinkL2SequencerUptimeFeed = IChainlinkAggregatorLike(_chainlinkL2SequencerUptimeFeed);
         WETH = _weth;
@@ -266,11 +271,11 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
             }),
             creditAddress: proposal.creditAddress,
             principal: acceptorValues.creditAmount,
-            interestModule: address(interestModule),
+            interestModule: IPWNInterestModule(interestModule),
             interestModuleProposerData: abi.encode(PWNStableInterestModule.ProposerData(proposal.interestAPR)),
-            defaultModule: address(defaultModule),
+            defaultModule: IPWNDefaultModule(defaultModule),
             defaultModuleProposerData: abi.encode(PWNDurationDefaultModule.ProposerData(proposal.duration)),
-            liquidationModule: address(0),
+            liquidationModule: IPWNLiquidationModule(liquidationModule),
             liquidationModuleProposerData: ""
         });
     }
