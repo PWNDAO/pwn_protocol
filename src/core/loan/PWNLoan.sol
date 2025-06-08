@@ -745,7 +745,6 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
 
     /**
      * @notice Update the lender repayment hook for a loan.
-     * @dev Only a LOAN token holder can update the lender repayment hook.
      * @param loanId Id of a loan that is being updated.
      * @param newHook New lender repayment hook.
      * @param newHookData New lender repayment hook data.
@@ -755,14 +754,8 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         IPWNLenderRepaymentHook newHook,
         bytes calldata newHookData
     ) external {
-        if (loanToken.ownerOf(loanId) != msg.sender) {
-            revert CallerNotLOANTokenHolder();
-        }
         _checkHubTag(address(newHook), PWNHubTags.HOOK);
-        lenderRepaymentHook[msg.sender][loanId] = LenderRepaymentHookData({
-            hook: newHook,
-            data: newHookData
-        });
+        lenderRepaymentHook[msg.sender][loanId] = LenderRepaymentHookData(newHook, newHookData);
     }
 
 
