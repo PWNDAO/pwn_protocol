@@ -483,7 +483,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
             } else {
                 repaymentOrigin = borrowerHook;
 
-                _settleWithBorrowerHook(loan, repaymentAmount, borrowerHook, borrowerHookData);
+                _callBorrowerHook(loan, repaymentAmount, borrowerHook, borrowerHookData);
             }
         }
 
@@ -491,7 +491,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         _settleRepayment(loanId, repaymentOrigin, loan.creditAddress, repaymentAmount);
     }
 
-    function _settleWithBorrowerHook(
+    function _callBorrowerHook(
         LOAN storage loan,
         uint256 repaymentAmount,
         address borrowerHook,
@@ -533,7 +533,12 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
                 loanOwner: loanOwner,
                 creditAddress: creditAddress,
                 repaymentAmount: repaymentAmount
-            }) {} catch {
+            }) {
+                // Delete loan if fully repaid and claimed
+                if (LOANs[loanId].principal == 0 && LOANs[loanId].unclaimedRepayment == 0) {
+                    _deleteLoan(loanId);
+                }
+            } catch {
                 _repaymentToVault(loanId, repaymentOrigin, creditAddress, repaymentAmount);
             }
         } else {
