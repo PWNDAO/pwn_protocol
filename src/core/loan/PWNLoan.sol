@@ -231,10 +231,8 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         BorrowerSpec calldata borrowerSpec,
         bytes calldata extra
     ) external returns (uint256 loanId) {
-        // Check provided proposal contract
-        _checkHubTag(proposalSpec.proposalContract, PWNHubTags.LOAN_PROPOSAL);
-
         // Accept proposal and get loan terms
+        _checkHubTag(proposalSpec.proposalContract, PWNHubTags.LOAN_PROPOSAL);
         Terms memory loanTerms = IPWNProposal(proposalSpec.proposalContract)
             .acceptProposal({
                 acceptor: msg.sender,
@@ -283,6 +281,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         });
 
         // Store lender repayment hook
+        // Note: hook tag check is not required here; would fail on repayment
         if (address(lenderSpec.repaymentHook) != address(0)) {
             lenderRepaymentHook[loanTerms.lender][loanId] = LenderRepaymentHookData({
                 hook: lenderSpec.repaymentHook,
@@ -759,8 +758,12 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         IPWNLenderRepaymentHook newHook,
         bytes calldata newHookData
     ) external {
-        _checkHubTag(address(newHook), PWNHubTags.HOOK);
-        lenderRepaymentHook[msg.sender][loanId] = LenderRepaymentHookData(newHook, newHookData);
+        if (address(newHook) == address(0)) {
+            delete lenderRepaymentHook[msg.sender][loanId];
+        } else {
+            _checkHubTag(address(newHook), PWNHubTags.HOOK);
+            lenderRepaymentHook[msg.sender][loanId] = LenderRepaymentHookData(newHook, newHookData);
+        }
     }
 
 
