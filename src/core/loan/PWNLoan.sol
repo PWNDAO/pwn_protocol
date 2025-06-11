@@ -9,7 +9,7 @@ import { PWNConfig } from "pwn/core/config/PWNConfig.sol";
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import { IPWNBorrowerCreateHook, BORROWER_CREATE_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNBorrowerCreateHook.sol";
-import { IPWNBorrowerCollateralRepaymentHook, BORROWER_REPAYMENT_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNBorrowerCollateralRepaymentHook.sol";
+import { IPWNBorrowerCollateralRepaymentHook, BORROWER_COLLATERAL_REPAYMENT_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNBorrowerCollateralRepaymentHook.sol";
 import { IPWNLenderCreateHook, LENDER_CREATE_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNLenderCreateHook.sol";
 import { IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNLenderRepaymentHook.sol";
 import { IPWNModuleInitializationHook } from "pwn/core/loan/module/IPWNModuleInitializationHook.sol";
@@ -510,8 +510,8 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
             repayment: repaymentAmount,
             borrowerData: borrowerHookData
         });
-        if (hookReturnValue != BORROWER_REPAYMENT_HOOK_RETURN_VALUE) {
-            revert InvalidHookReturnValue({ expected: BORROWER_REPAYMENT_HOOK_RETURN_VALUE, current: hookReturnValue });
+        if (hookReturnValue != BORROWER_COLLATERAL_REPAYMENT_HOOK_RETURN_VALUE) {
+            revert InvalidHookReturnValue({ expected: BORROWER_COLLATERAL_REPAYMENT_HOOK_RETURN_VALUE, current: hookReturnValue });
         }
     }
 

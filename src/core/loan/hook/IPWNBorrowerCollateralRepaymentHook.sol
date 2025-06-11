@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import { MultiToken } from "MultiToken/MultiToken.sol";
 
-bytes32 constant BORROWER_REPAYMENT_HOOK_RETURN_VALUE = keccak256("PWNBorrowerCollateralRepaymentHook.onLoanRepaid");
+bytes32 constant BORROWER_COLLATERAL_REPAYMENT_HOOK_RETURN_VALUE = keccak256("PWNBorrowerCollateralRepaymentHook.onLoanRepaid");
 
 /**
  * @title IPWNBorrowerCollateralRepaymentHook
