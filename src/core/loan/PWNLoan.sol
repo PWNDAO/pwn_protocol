@@ -481,7 +481,6 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
                 _push(loan.collateral, loan.borrower);
             } else {
                 repaymentOrigin = borrowerHook;
-
                 _callBorrowerHook(loan, repaymentAmount, borrowerHook, borrowerHookData);
             }
         }
@@ -521,41 +520,37 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         address creditAddress,
         uint256 repaymentAmount
     ) internal {
-        // Note: Repayment is transferred into the Vault if no repayment hook is set or the hook reverts.
+        // Note: Repayment is transferred into the Vault if the hook reverts.
 
         address loanOwner = loanToken.ownerOf(loanId);
-        LenderRepaymentHookData memory lenderHookData = lenderRepaymentHook[loanOwner][loanId];
-        if (address(lenderHookData.hook) != address(0)) {
-            try this.tryCallRepaymentHook({
-                hookData: lenderHookData,
-                repaymentOrigin: repaymentOrigin,
-                loanOwner: loanOwner,
-                creditAddress: creditAddress,
-                repaymentAmount: repaymentAmount
-            }) {
-                // Delete loan if fully repaid and claimed
-                if (LOANs[loanId].principal == 0 && LOANs[loanId].unclaimedRepayment == 0) {
-                    _deleteLoan(loanId);
-                }
-            } catch {
-                _repaymentToVault(loanId, repaymentOrigin, creditAddress, repaymentAmount);
+        try this.tryCallLenderRepaymentHook({
+            hookData: lenderRepaymentHook[loanOwner][loanId],
+            repaymentOrigin: repaymentOrigin,
+            loanOwner: loanOwner,
+            creditAddress: creditAddress,
+            repaymentAmount: repaymentAmount
+        }) {
+            // Delete loan if fully repaid and claimed
+            if (LOANs[loanId].principal == 0 && LOANs[loanId].unclaimedRepayment == 0) {
+                _deleteLoan(loanId);
             }
-        } else {
-            _repaymentToVault(loanId, repaymentOrigin, creditAddress, repaymentAmount);
+        } catch {
+            // Update unclaimed repayment amount
+            LOANs[loanId].unclaimedRepayment += repaymentAmount;
+            // Transfer repayment amount to vault
+            _pull(creditAddress.ERC20(repaymentAmount), repaymentOrigin);
         }
     }
 
-    function tryCallRepaymentHook(
+    function tryCallLenderRepaymentHook(
         LenderRepaymentHookData memory hookData,
         address repaymentOrigin,
         address loanOwner,
         address creditAddress,
         uint256 repaymentAmount
     ) external {
-        // Check that the caller is a vault
         if (msg.sender != address(this)) revert CallerNotVault();
-
-        // Check that hook has PWN Hub tag
+        if (address(hookData.hook) == address(0)) revert HookZeroAddress();
         _checkHubTag(address(hookData.hook), PWNHubTags.HOOK);
 
         // Transfer repayment to lender repayment hook
@@ -568,17 +563,47 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         }
     }
 
-    /** @dev Called during loan repayment when loan owner has no lender repayment hook set or the hook reverts.*/
-    function _repaymentToVault(
-        uint256 loanId,
-        address repaymentOrigin,
-        address creditAddress,
-        uint256 repaymentAmount
-    ) internal {
-        // Update unclaimed repayment amount
-        LOANs[loanId].unclaimedRepayment += repaymentAmount;
-        // Transfer repayment amount to vault
-        _pull(creditAddress.ERC20(repaymentAmount), repaymentOrigin);
+
+    /*----------------------------------------------------------*|
+    |*  # CLAIM LOAN                                            *|
+    |*----------------------------------------------------------*/
+
+    /**
+     * @notice Claim a loan repayment.
+     * @dev Only a loan owner can claim a loan repayment.
+     * @param loanId Id of a loan that is being claimed.
+     */
+    function claimRepayment(uint256 loanId) external nonLoanContextReentrant(loanId) {
+        // Check that caller is LOAN token holder
+        if (loanToken.ownerOf(loanId) != msg.sender) revert CallerNotLOANTokenHolder();
+
+        LOAN storage loan = LOANs[loanId];
+        // Check that there is something to claim
+        if (loan.unclaimedRepayment == 0) revert NothingToClaim();
+
+        emit LOANRepaymentClaimed({ loanId: loanId, claimedAmount: loan.unclaimedRepayment });
+
+        MultiToken.Asset memory unclaimedCredit = loan.creditAddress.ERC20(loan.unclaimedRepayment);
+
+        if (loan.principal == 0) {
+            // Loan is full repaid, claiming the unclaimed amount deletes the loan
+            _deleteLoan(loanId);
+        } else {
+            // Loan is still RUNNING or DEFAULTED
+            loan.unclaimedRepayment = 0;
+        }
+
+        // Transfer unclaimed amount to the loan owner
+        _push(unclaimedCredit, msg.sender);
+    }
+
+    /**
+     * @notice Delete loan data and burn LOAN token.
+     * @param loanId Id of a loan that is being deleted.
+     */
+    function _deleteLoan(uint256 loanId) private {
+        loanToken.burn(loanId);
+        delete LOANs[loanId];
     }
 
 
@@ -631,49 +656,6 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         if (loan.unclaimedRepayment == 0) {
             _deleteLoan(loanId);
         }
-    }
-
-
-    /*----------------------------------------------------------*|
-    |*  # CLAIM LOAN                                            *|
-    |*----------------------------------------------------------*/
-
-    /**
-     * @notice Claim a loan repayment.
-     * @dev Only a loan owner can claim a loan repayment.
-     * @param loanId Id of a loan that is being claimed.
-     */
-    function claimRepayment(uint256 loanId) external nonLoanContextReentrant(loanId) {
-        // Check that caller is LOAN token holder
-        if (loanToken.ownerOf(loanId) != msg.sender) revert CallerNotLOANTokenHolder();
-
-        LOAN storage loan = LOANs[loanId];
-        // Check that there is something to claim
-        if (loan.unclaimedRepayment == 0) revert NothingToClaim();
-
-        emit LOANRepaymentClaimed({ loanId: loanId, claimedAmount: loan.unclaimedRepayment });
-
-        MultiToken.Asset memory unclaimedCredit = loan.creditAddress.ERC20(loan.unclaimedRepayment);
-
-        if (loan.principal == 0) {
-            // Loan is full repaid, claiming the unclaimed amount deletes the loan
-            _deleteLoan(loanId);
-        } else {
-            // Loan is still RUNNING or DEFAULTED
-            loan.unclaimedRepayment = 0;
-        }
-
-        // Transfer unclaimed amount to the loan owner
-        _push(unclaimedCredit, msg.sender);
-    }
-
-    /**
-     * @notice Delete loan data and burn LOAN token.
-     * @param loanId Id of a loan that is being deleted.
-     */
-    function _deleteLoan(uint256 loanId) private {
-        loanToken.burn(loanId);
-        delete LOANs[loanId];
     }
 
 
