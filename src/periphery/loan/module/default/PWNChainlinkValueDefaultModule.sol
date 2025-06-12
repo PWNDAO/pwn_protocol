@@ -2,7 +2,6 @@
 pragma solidity 0.8.16;
 
 import { Math } from "openzeppelin/utils/math/Math.sol";
-import { SafeCast } from "openzeppelin/utils/math/SafeCast.sol";
 
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
@@ -13,7 +12,6 @@ import { Chainlink, IChainlinkAggregatorLike, IChainlinkFeedRegistryLike } from 
 
 contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
     using Math for uint256;
-    using SafeCast for uint256;
     using Chainlink for Chainlink.Config;
 
     uint256 public constant MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS = 4;
@@ -71,7 +69,7 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
         if (proposer.lltv > 10 ** LLTV_DECIMALS) revert InvalidLLTV();
 
         _defaultData[msg.sender][loanId] = DefaultData({
-            lltv: proposer.lltv.toUint248(),
+            lltv: proposer.lltv,
             feedIntermediaryDenominations: proposer.feedIntermediaryDenominations,
             feedInvertFlags: proposer.feedInvertFlags
         });
