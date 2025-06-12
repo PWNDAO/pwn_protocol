@@ -487,6 +487,11 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
 
         // Settle repayment
         _settleRepayment(loanId, repaymentOrigin, loan.creditAddress, repaymentAmount);
+
+        // Delete loan if fully repaid and claimed
+        if (loan.principal == 0 && loan.unclaimedRepayment == 0) {
+            _deleteLoan(loanId);
+        }
     }
 
     function _callBorrowerHook(
@@ -529,12 +534,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
             loanOwner: loanOwner,
             creditAddress: creditAddress,
             repaymentAmount: repaymentAmount
-        }) {
-            // Delete loan if fully repaid and claimed
-            if (LOANs[loanId].principal == 0 && LOANs[loanId].unclaimedRepayment == 0) {
-                _deleteLoan(loanId);
-            }
-        } catch {
+        }) {} catch {
             // Update unclaimed repayment amount
             LOANs[loanId].unclaimedRepayment += repaymentAmount;
             // Transfer repayment amount to vault
@@ -586,7 +586,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         MultiToken.Asset memory unclaimedCredit = loan.creditAddress.ERC20(loan.unclaimedRepayment);
 
         if (loan.principal == 0) {
-            // Loan is full repaid, claiming the unclaimed amount deletes the loan
+            // Loan is fully repaid, claiming the unclaimed amount deletes the loan
             _deleteLoan(loanId);
         } else {
             // Loan is still RUNNING or DEFAULTED
@@ -647,12 +647,14 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
             _settleRepayment(loanId, address(liquidationModule), loan.creditAddress, liquidationAmount);
         }
 
+        // Emit liquidation event
         emit LOANLiquidated({
             loanId: loanId,
             liquidator: address(liquidationModule),
             liquidationAmount: liquidationAmount
         });
 
+        // If the loan is fully claimed, delete it
         if (loan.unclaimedRepayment == 0) {
             _deleteLoan(loanId);
         }
