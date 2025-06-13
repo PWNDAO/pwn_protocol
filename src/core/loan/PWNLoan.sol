@@ -684,7 +684,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         if (loan.principal == 0) {
             return loan.unclaimedRepayment == 0 ? LOANStatus.DEAD : LOANStatus.REPAID;
         } else {
-            return loan.defaultModule.isDefaulted(address(this), loanId) ? LOANStatus.DEFAULTED : LOANStatus.RUNNING;
+            return _tryIsDefaulted(loanId) ? LOANStatus.DEFAULTED : LOANStatus.RUNNING;
         }
     }
 
@@ -696,7 +696,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
      */
     function getLOANDebt(uint256 loanId) public view returns (uint256) {
         LOAN storage loan = LOANs[loanId];
-        return loan.principal + loan.pastAccruedInterest + loan.interestModule.interest(address(this), loanId);
+        return loan.principal + loan.pastAccruedInterest + _tryInterest(loanId);
     }
 
 
@@ -827,6 +827,22 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
     function _checkHubTag(address addr, bytes32 tag) internal view {
         if (!hub.hasTag(addr, tag)) {
             revert AddressMissingHubTag({ addr: addr, tag: tag });
+        }
+    }
+
+    function _tryIsDefaulted(uint256 loanId) internal view returns (bool) {
+        try LOANs[loanId].defaultModule.isDefaulted(address(this), loanId) returns (bool isDefaulted) {
+            return isDefaulted;
+        } catch {
+            return false; // If the call fails, assume the loan is not defaulted
+        }
+    }
+
+    function _tryInterest(uint256 loanId) internal view returns (uint256) {
+        try LOANs[loanId].interestModule.interest(address(this), loanId) returns (uint256 interest) {
+            return interest;
+        } catch {
+            return 0; // If the call fails, assume no interest
         }
     }
 

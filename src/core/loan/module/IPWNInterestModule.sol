@@ -18,6 +18,9 @@ bytes32 constant INTEREST_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNInterest
  * by the loan contract. If the implementation computes interest only from the principal amount, it can safely ignore previously accrued interest.
  * Only if the module's logic requires it for its own computation should it consider previously accrued interest.
  *
+ * The `interest` function MUST NOT revert. If the call to this function reverts, it will be interpreted
+ * by the loan contract as returning zero interest accrued. Always return a value.
+ *
  * The module must also implement the `onLoanCreated` initialization hook, which is called by PWNLoan
  * at loan origination to configure the module for the specific loan. The hook must return a
  * keccak256 hash of "PWNInterestModule.onLoanCreated".

@@ -14,6 +14,9 @@ bytes32 constant DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNDefaultMo
  * The module must use the loan's state (fetched from the loan contract at the provided address)
  * to evaluate whether default conditions are met (e.g., time-based, debt limit, or other criteria).
  *
+ * The `isDefaulted` function MUST NOT revert. If the call to this function reverts, it will be interpreted
+ * by the loan contract as returning false (i.e., the loan is not in default). Always return a boolean value.
+ *
  * The module must also implement the `onLoanCreated` initialization hook, which is called by PWNLoan
  * at loan origination to configure the module for the specific loan. The hook must return a
  * keccak256 hash of "PWNDefaultModule.onLoanCreated".

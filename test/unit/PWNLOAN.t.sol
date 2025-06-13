@@ -1623,7 +1623,7 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
     function test_shouldFail_whenLiquidationModuleCallReverts() external {
         vm.mockCallRevert(
             address(liquidationModule),
-            abi.encodeWithSelector(IPWNLiquidationModule.liquidate.selector),
+            abi.encodeWithSelector(IPWNLiquidationModule.liquidate.selector, loanId),
             abi.encode("revert data")
         );
 
@@ -1769,6 +1769,21 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
         assertEq(loanContract.getLOANStatus(loanId), LOANStatus.DEAD);
     }
 
+    function test_shouldDeleteLoan_whenZeroUnclaimedRepayment_whenZeroLiquidationAmount() external {
+        _mockLiquidation(loanId, 0);
+        loan.unclaimedRepayment = 0;
+        _mockLOAN(loanId, loan);
+
+        vm.prank(lender);
+        loanContract.updateLenderRepaymentHook(loanId, IPWNLenderRepaymentHook(address(0)), "");
+
+        vm.expectCall(loanToken, abi.encodeWithSignature("burn(uint256)", loanId));
+
+        loanContract.liquidate(loanId, "");
+
+        assertEq(loanContract.getLOANStatus(loanId), LOANStatus.DEAD);
+    }
+
 
     function _test_failedTransferToHook_transferToVault(uint256 liquidationAmount) private {
         vm.expectCall( // reverts
@@ -1793,7 +1808,6 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
         assertEq(fungibleAsset.balanceOf(address(loanContract)), vaultBalanceBefore + liquidationAmount);
         assertEq(fungibleAsset.balanceOf(address(lenderRepaymentHook)), 0);
     }
-
 
 }
 
@@ -1849,6 +1863,18 @@ contract PWNLoan_GetLOANStatus_Test is PWNLoanTest {
         assertEq(loanContract.getLOANStatus(loanId), LOANStatus.REPAID); // Repaid loan (even if default module returns true)
     }
 
+    function test_shouldReturnNotDefaulted_whenDefaultModuleReverts() external {
+        _mockLOAN(loanId, loan);
+
+        vm.mockCallRevert(
+            address(defaultModule),
+            abi.encodeWithSelector(IPWNDefaultModule.isDefaulted.selector, address(loanContract), loanId),
+            abi.encode("revert data")
+        );
+
+        assertEq(loanContract.getLOANStatus(loanId), LOANStatus.RUNNING); // Should return RUNNING when default module reverts
+    }
+
 }
 
 
@@ -1866,6 +1892,20 @@ contract PWNLoan_GetLOANDebt_Test is PWNLoanTest {
         _mockInterest(loanId, 7 ether);
 
         assertEq(loanContract.getLOANDebt(loanId), 112 ether); // principal + pastAccruedInterest + newly accrued interest
+    }
+
+    function test_shouldReturnStoredDebt_whenInterestModuleReverts() external {
+        loan.principal = 100 ether;
+        loan.pastAccruedInterest = 5 ether;
+        _mockLOAN(loanId, loan);
+
+        vm.mockCallRevert(
+            address(interestModule),
+            abi.encodeWithSelector(IPWNInterestModule.interest.selector, address(loanContract), loanId),
+            abi.encode("revert data")
+        );
+
+        assertEq(loanContract.getLOANDebt(loanId), 105 ether); // principal + pastAccruedInterest
     }
 
 }
