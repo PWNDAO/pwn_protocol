@@ -55,11 +55,11 @@ abstract contract PWNStableInterestModuleTest is Test {
         vm.mockCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOAN.selector, _loanId), abi.encode(_loan));
     }
 
-    function _mockApr(uint256 _loanId, uint256 _apr) internal {
+    function _mockApr(uint256 _loanId, uint24 _apr) internal {
         vm.store(
             address(interestModule),
             keccak256(abi.encode(_loanId, keccak256(abi.encode(loanContract, 0)))),
-            bytes32(_apr)
+            bytes32(uint256(_apr) << 8 | 1) // 0x00...00AAAAAAII
         );
     }
 
@@ -88,14 +88,14 @@ contract PWNStableInterestModule_OnLoanCreated_Test is PWNStableInterestModuleTe
 
     function test_shouldFail_whenLoanAlreadyInitialized() public {
         vm.prank(loanContract);
-        interestModule.onLoanCreated(loanId, abi.encode(100));
+        interestModule.onLoanCreated(loanId, abi.encode(0));
 
         vm.expectRevert(PWNStableInterestModule.LoanAlreadyInitialized.selector);
         vm.prank(loanContract);
-        interestModule.onLoanCreated(loanId, abi.encode(200));
+        interestModule.onLoanCreated(loanId, abi.encode(0));
     }
 
-    function testFuzz_shouldStoreAPR(uint256 apr) public {
+    function testFuzz_shouldStoreAPR(uint24 apr) public {
         vm.prank(loanContract);
         interestModule.onLoanCreated(loanId, abi.encode(apr));
 
@@ -175,6 +175,21 @@ contract PWNStableInterestModule_Interest_Test is PWNStableInterestModuleTest {
 
         _mockApr(loanId, 10000); // 100%
         assertEq(interestModule.interest(loanContract, loanId), 100 ether);
+    }
+
+}
+
+
+/*----------------------------------------------------------*|
+|*  # APR                                                   *|
+|*----------------------------------------------------------*/
+
+contract PWNStableInterestModule_Apr_Test is PWNStableInterestModuleTest {
+
+    function test_shouldReturnStoredApr(uint24 apr) public {
+        _mockApr(loanId, apr);
+
+        assertEq(interestModule.apr(loanContract, loanId), apr);
     }
 
 }

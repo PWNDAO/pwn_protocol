@@ -2,6 +2,7 @@
 pragma solidity 0.8.16;
 
 import { Math } from "openzeppelin/utils/math/Math.sol";
+import { SafeCast } from "openzeppelin/utils/math/SafeCast.sol";
 
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
@@ -20,21 +21,29 @@ import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
  */
 contract PWNStableInterestModule is IPWNInterestModule {
     using Math for uint256;
+    using SafeCast for uint256;
 
+    /** @notice Number of decimals for APR precision (e.g., 6231 = 0.6231 = 62.31%).*/
     uint256 public constant APR_DECIMALS = 4; // 6231 = 0.6231 = 62.31%
 
+    /** @notice The PWNHub contract used for access control.*/
     PWNHub public immutable hub;
 
     /**
      * @notice Struct containing proposer data for loan initialization.
-     * @param apr The annual percentage rate (APR) to be set for the loan, with APR_DECIMALS precision.
+     * @param apr The annual percentage rate (APR) to be set for the loan, with APR_DECIMALS decimals.
      */
     struct ProposerData {
         uint256 apr;
     }
 
-    /** @notice Mapping of loan contract address and loan ID to the APR value for each loan*/
-    mapping (address => mapping(uint256 => uint256)) public apr;
+    struct InterestData {
+        bool initialized;
+        uint24 apr;
+    }
+
+    /** @notice Mapping of loan contract address and loan ID to the interest data for each loan.*/
+    mapping (address => mapping(uint256 => InterestData)) internal _interestData;
 
     /** @notice Thrown when the provided PWNHub address is zero in the constructor.*/
     error HubZeroAddress();
@@ -63,8 +72,10 @@ contract PWNStableInterestModule is IPWNInterestModule {
         if (!hub.hasTag(msg.sender, PWNHubTags.ACTIVE_LOAN)) revert CallerNotActiveLoan();
         if (proposerData.length != 32) revert InvalidProposerDataLength();
 
-        if (apr[msg.sender][loanId] != 0) revert LoanAlreadyInitialized();
-        apr[msg.sender][loanId] = abi.decode(proposerData, (uint256));
+        InterestData storage interestData = _interestData[msg.sender][loanId];
+        if (interestData.initialized) revert LoanAlreadyInitialized();
+        interestData.initialized = true;
+        interestData.apr = abi.decode(proposerData, (uint256)).toUint24();
 
         return INTEREST_MODULE_INIT_HOOK_RETURN_VALUE;
     }
@@ -82,9 +93,14 @@ contract PWNStableInterestModule is IPWNInterestModule {
         if (block.timestamp < loan.lastUpdateTimestamp) return 0;
 
         return loan.principal.mulDiv(
-            apr[loanContract][loanId].mulDiv(block.timestamp - loan.lastUpdateTimestamp, 365 days),
+            uint256(_interestData[loanContract][loanId].apr).mulDiv(block.timestamp - loan.lastUpdateTimestamp, 365 days),
             10 ** APR_DECIMALS
         );
+    }
+
+
+    function apr(address loanContract, uint256 loanId) external view returns (uint256) {
+        return _interestData[loanContract][loanId].apr;
     }
 
 }
