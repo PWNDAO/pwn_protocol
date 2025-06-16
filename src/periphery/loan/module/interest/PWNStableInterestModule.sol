@@ -15,7 +15,7 @@ import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
  * @notice Stable interest module for PWNLoan contracts.
  *
  * @dev This module allows each loan to have a stable APR (annual percentage rate) set at origination.
- * Interest is accrued linearly over time based on the principal and the APR, and is calculated per minute.
+ * Interest is accrued linearly over time based on the principal and the APR, and is calculated per second.
  * The module stores the APR for each loan and calculates interest only for the period since the last update.
  * Implements the IPWNInterestModule interface and must be initialized via the onLoanCreated hook.
  */
@@ -74,6 +74,7 @@ contract PWNStableInterestModule is IPWNInterestModule {
 
         InterestData storage interestData = _interestData[msg.sender][loanId];
         if (interestData.initialized) revert LoanAlreadyInitialized();
+
         interestData.initialized = true;
         interestData.apr = abi.decode(proposerData, (uint256)).toUint24();
 
@@ -82,7 +83,7 @@ contract PWNStableInterestModule is IPWNInterestModule {
 
     /**
      * @notice Calculates the interest accrued for a loan since its last update.
-     * @dev Uses the stored APR and principal to compute interest linearly per minute since the last update timestamp.
+     * @dev Uses the stored APR and principal to compute interest linearly per second since the last update timestamp.
      * @param loanContract The address of the PWNLoan contract managing the loan.
      * @param loanId The unique identifier of the loan.
      * @return The amount of interest accrued since the last update timestamp.
@@ -98,7 +99,13 @@ contract PWNStableInterestModule is IPWNInterestModule {
         );
     }
 
-
+    /**
+     * @notice Returns the APR for a specific loan.
+     * @dev Retrieves the APR from the interest data mapping for the given loan contract and ID.
+     * @param loanContract The address of the PWNLoan contract managing the loan.
+     * @param loanId The unique identifier of the loan.
+     * @return The APR for the specified loan, in basis points (bps).
+     */
     function apr(address loanContract, uint256 loanId) external view returns (uint256) {
         return _interestData[loanContract][loanId].apr;
     }

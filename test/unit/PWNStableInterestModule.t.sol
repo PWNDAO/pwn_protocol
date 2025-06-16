@@ -55,7 +55,7 @@ abstract contract PWNStableInterestModuleTest is Test {
         vm.mockCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOAN.selector, _loanId), abi.encode(_loan));
     }
 
-    function _mockApr(uint256 _loanId, uint24 _apr) internal {
+    function _mockInterestData(uint256 _loanId, uint24 _apr) internal {
         vm.store(
             address(interestModule),
             keccak256(abi.encode(_loanId, keccak256(abi.encode(loanContract, 0)))),
@@ -72,7 +72,7 @@ abstract contract PWNStableInterestModuleTest is Test {
 
 contract PWNStableInterestModule_OnLoanCreated_Test is PWNStableInterestModuleTest {
 
-    function test_shouldFail_whenCallerIsNotActiveLoan() public {
+    function test_shouldFail_whenCallerIsNotActiveLoan() external {
         _mockHubTag(loanContract, PWNHubTags.ACTIVE_LOAN, false);
 
         vm.expectRevert(PWNStableInterestModule.CallerNotActiveLoan.selector);
@@ -80,13 +80,13 @@ contract PWNStableInterestModule_OnLoanCreated_Test is PWNStableInterestModuleTe
         interestModule.onLoanCreated(loanId, abi.encode(100));
     }
 
-    function test_shouldFail_whenProposerDataIsInvalid() public {
+    function test_shouldFail_whenProposerDataIsInvalid() external {
         vm.prank(loanContract);
         vm.expectRevert(PWNStableInterestModule.InvalidProposerDataLength.selector);
         interestModule.onLoanCreated(loanId, abi.encode(uint256(1), uint256(1), "wrong data", "format"));
     }
 
-    function test_shouldFail_whenLoanAlreadyInitialized() public {
+    function test_shouldFail_whenLoanAlreadyInitialized() external {
         vm.prank(loanContract);
         interestModule.onLoanCreated(loanId, abi.encode(0));
 
@@ -95,14 +95,14 @@ contract PWNStableInterestModule_OnLoanCreated_Test is PWNStableInterestModuleTe
         interestModule.onLoanCreated(loanId, abi.encode(0));
     }
 
-    function testFuzz_shouldStoreAPR(uint24 apr) public {
+    function testFuzz_shouldStoreAPR(uint24 apr) external {
         vm.prank(loanContract);
         interestModule.onLoanCreated(loanId, abi.encode(apr));
 
         assertEq(interestModule.apr(loanContract, loanId), apr);
     }
 
-    function test_shouldReturnInitHookValue() public {
+    function test_shouldReturnInitHookValue() external {
         vm.prank(loanContract);
         bytes32 result = interestModule.onLoanCreated(loanId, abi.encode(100));
 
@@ -121,23 +121,23 @@ contract PWNStableInterestModule_Interest_Test is PWNStableInterestModuleTest {
     function setUp() override public virtual {
         super.setUp();
 
-        _mockApr(loanId, 100);
+        _mockInterestData(loanId, 100);
     }
 
-    function test_shouldFetchLoanData() public {
+    function test_shouldFetchLoanData() external {
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOAN.selector, loanId));
 
         interestModule.interest(loanContract, loanId);
     }
 
-    function test_shouldReturnZero_whenLastUpdateTimestampIsInFuture() public {
+    function test_shouldReturnZero_whenLastUpdateTimestampIsInFuture() external {
         loan.lastUpdateTimestamp = uint40(block.timestamp + 1);
         _mockGetLOAN(loanId, loan);
 
         assertEq(interestModule.interest(loanContract, loanId), 0);
     }
 
-    function test_shouldCalculateInterest() public {
+    function test_shouldCalculateInterest() external {
         loan.pastAccruedInterest = 46 ether; // should be ignored
         loan.principal = 100 ether;
         loan.lastUpdateTimestamp = uint40(0);
@@ -145,35 +145,35 @@ contract PWNStableInterestModule_Interest_Test is PWNStableInterestModuleTest {
 
         vm.warp(0);
 
-        _mockApr(loanId, 100); // 1%
+        _mockInterestData(loanId, 100); // 1%
         assertEq(interestModule.interest(loanContract, loanId), 0);
 
-        _mockApr(loanId, 1000); // 10%
+        _mockInterestData(loanId, 1000); // 10%
         assertEq(interestModule.interest(loanContract, loanId), 0);
 
-        _mockApr(loanId, 10000); // 100%
+        _mockInterestData(loanId, 10000); // 100%
         assertEq(interestModule.interest(loanContract, loanId), 0);
 
         vm.warp(182.5 days);
 
-        _mockApr(loanId, 100); // 1%
+        _mockInterestData(loanId, 100); // 1%
         assertEq(interestModule.interest(loanContract, loanId), 0.5 ether);
 
-        _mockApr(loanId, 1000); // 10%
+        _mockInterestData(loanId, 1000); // 10%
         assertEq(interestModule.interest(loanContract, loanId), 5 ether);
 
-        _mockApr(loanId, 10000); // 100%
+        _mockInterestData(loanId, 10000); // 100%
         assertEq(interestModule.interest(loanContract, loanId), 50 ether);
 
         vm.warp(365 days);
 
-        _mockApr(loanId, 100); // 1%
+        _mockInterestData(loanId, 100); // 1%
         assertEq(interestModule.interest(loanContract, loanId), 1 ether);
 
-        _mockApr(loanId, 1000); // 10%
+        _mockInterestData(loanId, 1000); // 10%
         assertEq(interestModule.interest(loanContract, loanId), 10 ether);
 
-        _mockApr(loanId, 10000); // 100%
+        _mockInterestData(loanId, 10000); // 100%
         assertEq(interestModule.interest(loanContract, loanId), 100 ether);
     }
 
@@ -186,8 +186,8 @@ contract PWNStableInterestModule_Interest_Test is PWNStableInterestModuleTest {
 
 contract PWNStableInterestModule_Apr_Test is PWNStableInterestModuleTest {
 
-    function test_shouldReturnStoredApr(uint24 apr) public {
-        _mockApr(loanId, apr);
+    function test_shouldReturnStoredApr(uint24 apr) external {
+        _mockInterestData(loanId, apr);
 
         assertEq(interestModule.apr(loanContract, loanId), apr);
     }
