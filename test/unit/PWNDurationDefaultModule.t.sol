@@ -75,7 +75,7 @@ contract PWNDurationDefaultModule_OnLoanCreated_Test is PWNDurationDefaultModule
         defaultModule.onLoanCreated(loanId, abi.encode(1 days));
     }
 
-    function testFuzz_shouldFail_whenDuraitonTooShort(uint256 duration) external {
+    function testFuzz_shouldFail_whenDurationTooShort(uint256 duration) external {
         duration = bound(duration, 0, defaultModule.MIN_DURATION() - 1);
 
         vm.prank(loanContract);
