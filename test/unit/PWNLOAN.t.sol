@@ -401,6 +401,19 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         });
     }
 
+    function test_shouldFail_whenZeroPrincipal() external {
+        terms.principal = 0;
+        _mockLoanTerms(terms);
+
+        vm.expectRevert(abi.encodeWithSelector(PWNLoan.ZeroPrincipal.selector));
+        loanContract.create({
+            proposalSpec: proposalSpec,
+            lenderSpec: lenderSpec,
+            borrowerSpec: borrowerSpec,
+            extra: ""
+        });
+    }
+
     function test_shouldFail_whenInvalidCreditAsset() external {
         vm.mockCall(
             categoryRegistry,

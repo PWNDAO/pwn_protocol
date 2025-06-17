@@ -173,6 +173,8 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
     error HookZeroAddress();
     /** @notice Thrown when loan is defaulted on creation.*/
     error DefaultedOnCreation();
+    /** @notice Thrown when a loan is created with zero principal.*/
+    error ZeroPrincipal();
 
 
     /*----------------------------------------------------------*|
@@ -250,6 +252,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         }
 
         // Check loan credit and collateral validity
+        if (loanTerms.principal == 0) revert ZeroPrincipal();
         _checkValidAsset(loanTerms.creditAddress.ERC20(loanTerms.principal));
         _checkValidAsset(loanTerms.collateral);
 
