@@ -135,6 +135,15 @@ contract PWNChainlinkValueDefaultModule_OnLoanCreated_Test is PWNChainlinkValueD
         defaultModule.onLoanCreated(loanId, encodedProposerData);
     }
 
+    function test_shouldFail_whenCollateralNotERC20() external {
+        loan.collateral = makeAddr("coll").ERC721(100);
+        _mockGetLOAN(loanId, loan);
+
+        vm.expectRevert(PWNChainlinkValueDefaultModule.UnsupportedCollateral.selector);
+        vm.prank(loanContract);
+        defaultModule.onLoanCreated(loanId, encodedProposerData);
+    }
+
     function testFuzz_shouldFail_whenInvalidLLTV() external {
         vm.prank(loanContract);
         vm.expectRevert(PWNChainlinkValueDefaultModule.InvalidLLTV.selector);

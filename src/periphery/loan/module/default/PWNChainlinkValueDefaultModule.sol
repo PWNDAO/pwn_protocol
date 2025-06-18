@@ -3,6 +3,8 @@ pragma solidity 0.8.16;
 
 import { Math } from "openzeppelin/utils/math/Math.sol";
 
+import { MultiToken } from "MultiToken/MultiToken.sol";
+
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import { IPWNDefaultModule, DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNDefaultModule.sol";
@@ -65,6 +67,8 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
     error CallerNotActiveLoan();
     /** @notice Thrown when a loan is already initialized in this module.*/
     error LoanAlreadyInitialized();
+    /** @notice Thrown when the collateral category is not ERC20.*/
+    error UnsupportedCollateral();
     /** @notice Thrown when the provided LLTV is invalid (zero or above 1.0).*/
     error InvalidLLTV();
 
@@ -95,6 +99,9 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
     function onLoanCreated(uint256 loanId, bytes calldata proposerData) external returns (bytes32) {
         if (!hub.hasTag(msg.sender, PWNHubTags.ACTIVE_LOAN)) revert CallerNotActiveLoan();
         if (_defaultData[msg.sender][loanId].lltv != 0) revert LoanAlreadyInitialized();
+
+        PWNLoan.LOAN memory loan = PWNLoan(msg.sender).getLOAN(loanId);
+        if (loan.collateral.category != MultiToken.Category.ERC20) revert UnsupportedCollateral();
 
         ProposerData memory proposer = abi.decode(proposerData, (ProposerData));
         if (proposer.lltv > 10 ** LLTV_DECIMALS || proposer.lltv == 0) revert InvalidLLTV();
@@ -158,7 +165,7 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
      * @dev Reverts if input array lengths are invalid or if the number of intermediary denominations exceeds the maximum allowed.
      * @param feedInvertFlags Array of boolean flags indicating if the feed should be inverted at each step. Must be one longer than denominations.
      * @param feedIntermediaryDenominations Array of intermediary denomination addresses for Chainlink feed conversion.
-     * @return data ABI-encoded bytes containing the feed configuration.
+     * @return data Custom encoded data containing Chainlink price feed configuration. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
      */
     function _encodePriceFeedData(
         bool[] memory feedInvertFlags,
@@ -184,7 +191,7 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
     /**
      * @notice Decodes a bytes array into price feed intermediary denominations and invert flags.
      * @dev The input data must be encoded as per _encodePriceFeedData.
-     * @param data ABI-encoded bytes containing the feed configuration.
+     * @param data Custom encoded data containing Chainlink price feed configuration. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
      * @return feedInvertFlags Array of boolean flags indicating if the feed should be inverted at each step.
      * @return feedIntermediaryDenominations Array of intermediary denomination addresses for Chainlink feed conversion.
      */
