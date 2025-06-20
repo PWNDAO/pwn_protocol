@@ -4,6 +4,8 @@ pragma solidity 0.8.16;
 import { Math } from "openzeppelin/utils/math/Math.sol";
 import { SafeCast } from "openzeppelin/utils/math/SafeCast.sol";
 
+import { MultiToken } from "MultiToken/MultiToken.sol";
+
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import { IPWNDefaultModule, DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNDefaultModule.sol";
@@ -12,20 +14,37 @@ import { UniswapV3, INonfungiblePositionManager } from "pwn/periphery/lib/Uniswa
 import { Chainlink, IChainlinkAggregatorLike, IChainlinkFeedRegistryLike } from "pwn/periphery/lib/Chainlink.sol";
 
 
+/**
+ * @title PWNUniV3LPValueDefaultModule
+ * @notice Default module for PWN loans using Uniswap V3 LP token value and Chainlink feeds to determine default.
+ * @dev Determines default by comparing the value of a Uniswap V3 LP position (converted to the credit asset denomination) to the loan debt, using a liquidation loan-to-value (LLTV) ratio and Chainlink feeds.
+ */
 contract PWNUniV3LPValueDefaultModule is IPWNDefaultModule {
     using Math for uint256;
     using SafeCast for uint256;
     using UniswapV3 for UniswapV3.Config;
     using Chainlink for Chainlink.Config;
 
+    /** @notice Maximum number of intermediary denominations allowed for Chainlink feed conversion.*/
     uint256 public constant MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS = 4;
-    uint256 public constant LLTV_DECIMALS = 4; // 6231 = 0.6231 = 62.31%
+    /** @notice Number of decimals for the LLTV ratio (e.g., 6231 = 0.6231 = 62.31%).*/
+    uint256 public constant LLTV_DECIMALS = 4;
 
+    /** @notice Reference to the PWN Hub contract. */
     PWNHub public immutable hub;
 
+    /** @dev Uniswap V3 configuration struct for LP value operations.*/
     UniswapV3.Config internal _uniswap;
+    /** @dev Chainlink configuration struct for price feed operations.*/
     Chainlink.Config internal _chainlink;
 
+    /**
+     * @notice Struct containing proposer data for default logic.
+     * @param lltv Liquidation loan-to-value ratio (scaled by LLTV_DECIMALS).
+     * @param token0Denominator Boolean indicating if token0 is the denominator for LP value.
+     * @param feedIntermediaryDenominations Array of intermediary denominations for Chainlink feed conversion.
+     * @param feedInvertFlags Array of flags indicating if the feed should be inverted at each step.
+     */
     struct ProposerData {
         uint256 lltv;
         bool token0Denominator;
@@ -33,22 +52,38 @@ contract PWNUniV3LPValueDefaultModule is IPWNDefaultModule {
         bool[] feedInvertFlags;
     }
 
+    /**
+     * @notice Struct containing default data for a loan.
+     * @param lltv Liquidation loan-to-value ratio (scaled by LLTV_DECIMALS).
+     * @param token0Denominator Boolean indicating if token0 is the denominator for LP value.
+     * @param feedData Custom encoded data required to query the Chainlink price feed. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
+     */
     struct DefaultData {
         uint248 lltv;
         bool token0Denominator;
-        // todo: optimize storage
-        address[] feedIntermediaryDenominations;
-        bool[] feedInvertFlags;
+        bytes feedData;
     }
 
+    /** @notice Mapping of loan contract and loan id to default data for default logic.*/
     mapping (address => mapping(uint256 => DefaultData)) internal _defaultData;
 
+    /** @notice Thrown when the provided hub address is zero.*/
     error HubZeroAddress();
+    /** @notice Thrown when the provided Uniswap V3 position manager address is zero.*/
     error UniswapV3PositionManagerZeroAddress();
+    /** @notice Thrown when the provided Uniswap V3 factory address is zero.*/
     error UniswapV3FactoryZeroAddress();
+    /** @notice Thrown when the provided Chainlink feed registry address is zero.*/
     error ChainlinkFeedRegistryZeroAddress();
+    /** @notice Thrown when the provided WETH address is zero.*/
     error WethZeroAddress();
+    /** @notice Thrown when the caller does not have the ACTIVE_LOAN tag in the hub.*/
     error CallerNotActiveLoan();
+    /** @notice Thrown when a loan is already initialized in this module.*/
+    error LoanAlreadyInitialized();
+    /** @notice Thrown when the collateral category is not ERC20.*/
+    error UnsupportedCollateral();
+    /** @notice Thrown when the provided LLTV is invalid (zero or above 1.0).*/
     error InvalidLLTV();
 
 
@@ -75,40 +110,154 @@ contract PWNUniV3LPValueDefaultModule is IPWNDefaultModule {
         _chainlink.weth = weth;
     }
 
-
+    /**
+     * @notice Initializes the default module for a loan on creation.
+     * @dev Reverts if the caller is not an active loan, if already initialized, or if LLTV is invalid.
+     * @param loanId The id of the loan being initialized.
+     * @param proposerData ABI-encoded ProposerData struct containing LLTV and feed configuration.
+     * @return The expected module initialization hook return value.
+     */
     function onLoanCreated(uint256 loanId, bytes calldata proposerData) external returns (bytes32) {
         if (!hub.hasTag(msg.sender, PWNHubTags.ACTIVE_LOAN)) revert CallerNotActiveLoan();
+        if (_defaultData[msg.sender][loanId].lltv != 0) revert LoanAlreadyInitialized();
+
+        PWNLoan.LOAN memory loan = PWNLoan(msg.sender).getLOAN(loanId);
+        if (loan.collateral.category != MultiToken.Category.ERC721) revert UnsupportedCollateral();
+        if (loan.collateral.assetAddress != address(_uniswap.positionManager)) revert UnsupportedCollateral();
 
         ProposerData memory proposer = abi.decode(proposerData, (ProposerData));
+        if (proposer.lltv > 10 ** LLTV_DECIMALS || proposer.lltv == 0) revert InvalidLLTV();
 
-        if (proposer.lltv > 10 ** LLTV_DECIMALS) revert InvalidLLTV();
+        (,, address token0, address token1,,,,,,,,) = _uniswap.positionManager.positions(loan.collateral.id);
+        bytes memory encodedPriceFeedData = _encodePriceFeedData(
+            proposer.feedInvertFlags,
+            proposer.feedIntermediaryDenominations
+        );
+        bool isCreditInPair = token0 == loan.creditAddress || token1 == loan.creditAddress;
+
+        if (isCreditInPair && encodedPriceFeedData.length > 0) {
+            revert Chainlink.ChainlinkInvalidInputLenghts();
+        }
 
         _defaultData[msg.sender][loanId] = DefaultData({
             lltv: proposer.lltv.toUint248(),
             token0Denominator: proposer.token0Denominator,
-            feedIntermediaryDenominations: proposer.feedIntermediaryDenominations,
-            feedInvertFlags: proposer.feedInvertFlags
+            feedData: encodedPriceFeedData
         });
 
         return DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE;
     }
 
+    /**
+     * @notice Checks if a loan is defaulted based on the value of its Uniswap V3 LP collateral and the LLTV ratio.
+     * @dev Uses Uniswap V3 and Chainlink feeds to convert LP value to the credit asset denomination and compares to debt.
+     * @param loanContract The address of the loan contract.
+     * @param loanId The id of the loan to check.
+     * @return True if the loan is defaulted, false otherwise.
+     */
     function isDefaulted(address loanContract, uint256 loanId) public view returns (bool) {
-        DefaultData storage defaultData = _defaultData[loanContract][loanId];
+        DefaultData storage data = _defaultData[loanContract][loanId];
         PWNLoan.LOAN memory loan = PWNLoan(loanContract).getLOAN(loanId);
-        (uint256 lpValue, address denominator) = _uniswap.getLPValue(loanId, defaultData.token0Denominator);
+
+        (uint256 lpValue, address denominator) = _uniswap.getLPValue(loan.collateral.id, data.token0Denominator);
+
+        (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations)
+            = _decodePriceFeedData(data.feedData);
 
         if (loan.creditAddress != denominator) {
             lpValue = _chainlink.convertDenomination({
                 amount: lpValue,
                 oldDenomination: denominator,
                 newDenomination: loan.creditAddress,
-                feedIntermediaryDenominations: defaultData.feedIntermediaryDenominations,
-                feedInvertFlags: defaultData.feedInvertFlags
+                feedIntermediaryDenominations: feedIntermediaryDenominations,
+                feedInvertFlags: feedInvertFlags
             });
         }
 
-        return PWNLoan(loanContract).getLOANDebt(loanId) >= lpValue.mulDiv(defaultData.lltv, 10 ** LLTV_DECIMALS);
+        return PWNLoan(loanContract).getLOANDebt(loanId) >= lpValue.mulDiv(data.lltv, 10 ** LLTV_DECIMALS);
+    }
+
+    /**
+     * @notice Get the default data for a given loan.
+     * @param loanContract Address of the loan contract.
+     * @param loanId Loan identifier.
+     * @return lltv Liquidation loan-to-value ratio.
+     * @return token0Denominator Boolean indicating if token0 is the denominator for LP value.
+     * @return feedIntermediaryDenominations Intermediary denominations used in the price feed.
+     * @return feedInvertFlags Flags indicating whether to invert the price feed for each denomination.
+     */
+    function defaultData(
+        address loanContract,
+        uint256 loanId
+    ) external view returns (
+        uint256 lltv,
+        bool token0Denominator,
+        address[] memory feedIntermediaryDenominations,
+        bool[] memory feedInvertFlags
+    ) {
+        DefaultData storage data = _defaultData[loanContract][loanId];
+        lltv = data.lltv;
+        token0Denominator = data.token0Denominator;
+        (feedInvertFlags, feedIntermediaryDenominations) = _decodePriceFeedData(data.feedData);
+    }
+
+
+    /**
+     * @notice Encodes price feed intermediary denominations and invert flags into a bytes array.
+     * @dev Reverts if input array lengths are invalid or if the number of intermediary denominations exceeds the maximum allowed.
+     * @param feedInvertFlags Array of boolean flags indicating if the feed should be inverted at each step. Must be one longer than denominations.
+     * @param feedIntermediaryDenominations Array of intermediary denomination addresses for Chainlink feed conversion.
+     * @return data Custom encoded data containing Chainlink price feed configuration. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
+     */
+    function _encodePriceFeedData(
+        bool[] memory feedInvertFlags,
+        address[] memory feedIntermediaryDenominations
+    ) internal pure returns (bytes memory data) {
+        if (feedIntermediaryDenominations.length == 0 && feedInvertFlags.length == 0) return "";
+
+        if (feedIntermediaryDenominations.length + 1 != feedInvertFlags.length) {
+            revert Chainlink.ChainlinkInvalidInputLenghts();
+        }
+        uint256 intermediaryDenominationsLength = feedIntermediaryDenominations.length;
+        if (intermediaryDenominationsLength > MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS) {
+            revert Chainlink.IntermediaryDenominationsOutOfBounds(
+                intermediaryDenominationsLength,
+                MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS
+            );
+        }
+
+        for (uint256 i; i < intermediaryDenominationsLength; ++i) {
+            data = abi.encodePacked(data, feedInvertFlags[i], feedIntermediaryDenominations[i]);
+        }
+        data = abi.encodePacked(data, feedInvertFlags[intermediaryDenominationsLength]);
+    }
+
+    /**
+     * @notice Decodes a bytes array into price feed intermediary denominations and invert flags.
+     * @dev The input data must be encoded as per _encodePriceFeedData.
+     * @param data Custom encoded data containing Chainlink price feed configuration. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
+     * @return feedInvertFlags Array of boolean flags indicating if the feed should be inverted at each step.
+     * @return feedIntermediaryDenominations Array of intermediary denomination addresses for Chainlink feed conversion.
+     */
+    function _decodePriceFeedData(
+        bytes memory data
+    ) internal pure returns (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations) {
+        if (data.length == 0) return (new bool[](0), new address[](0));
+
+        uint256 intermediaryDenominationsLength = (data.length - 1) / 21;
+
+        feedInvertFlags = new bool[](intermediaryDenominationsLength + 1);
+        feedIntermediaryDenominations = new address[](intermediaryDenominationsLength);
+
+        for (uint256 i; i < intermediaryDenominationsLength; ++i) {
+            feedInvertFlags[i] = data[i * 21] == bytes1(0x01);
+            address addr;
+            assembly {
+                addr := shr(96, mload(add(add(data, 0x20), add(mul(i, 21), 1))))
+            }
+            feedIntermediaryDenominations[i] = addr;
+        }
+        feedInvertFlags[intermediaryDenominationsLength] = data[data.length - 1] == bytes1(0x01);
     }
 
 }
