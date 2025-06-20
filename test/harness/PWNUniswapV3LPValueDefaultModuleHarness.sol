@@ -2,12 +2,12 @@
 pragma solidity 0.8.16;
 
 import {
-    PWNUniV3LPValueDefaultModule,
+    PWNUniswapV3LPValueDefaultModule,
     PWNHub, IChainlinkAggregatorLike, IChainlinkFeedRegistryLike, INonfungiblePositionManager
-} from "pwn/periphery/loan/module/default/PWNUniV3LPValueDefaultModule.sol";
+} from "pwn/periphery/loan/module/default/PWNUniswapV3LPValueDefaultModule.sol";
 
 
-contract PWNUniV3LPValueDefaultModuleHarness is PWNUniV3LPValueDefaultModule {
+contract PWNUniswapV3LPValueDefaultModuleHarness is PWNUniswapV3LPValueDefaultModule {
 
     constructor(
         PWNHub _hub,
@@ -16,7 +16,7 @@ contract PWNUniV3LPValueDefaultModuleHarness is PWNUniV3LPValueDefaultModule {
         IChainlinkAggregatorLike chainlinkL2SequencerUptimeFeed,
         IChainlinkFeedRegistryLike chainlinkFeedRegistry,
         address weth
-    ) PWNUniV3LPValueDefaultModule(
+    ) PWNUniswapV3LPValueDefaultModule(
         _hub,
         uniswapV3PositionManager,
         uniswapV3Factory,

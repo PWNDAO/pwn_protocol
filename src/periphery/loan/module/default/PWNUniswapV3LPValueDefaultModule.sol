@@ -15,11 +15,11 @@ import { Chainlink, IChainlinkAggregatorLike, IChainlinkFeedRegistryLike } from 
 
 
 /**
- * @title PWNUniV3LPValueDefaultModule
+ * @title PWNUniswapV3LPValueDefaultModule
  * @notice Default module for PWN loans using Uniswap V3 LP token value and Chainlink feeds to determine default.
  * @dev Determines default by comparing the value of a Uniswap V3 LP position (converted to the credit asset denomination) to the loan debt, using a liquidation loan-to-value (LLTV) ratio and Chainlink feeds.
  */
-contract PWNUniV3LPValueDefaultModule is IPWNDefaultModule {
+contract PWNUniswapV3LPValueDefaultModule is IPWNDefaultModule {
     using Math for uint256;
     using SafeCast for uint256;
     using UniswapV3 for UniswapV3.Config;

@@ -8,7 +8,7 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 import { IPWNInterestModule } from "pwn/core/loan/module/IPWNInterestModule.sol";
 import { IPWNLiquidationModule } from "pwn/core/loan/module/IPWNLiquidationModule.sol";
 import {
-    PWNUniV3LPValueDefaultModule,
+    PWNUniswapV3LPValueDefaultModule,
     PWNHub,
     PWNHubTags,
     PWNLoan,
@@ -18,15 +18,15 @@ import {
     Chainlink,
     IChainlinkAggregatorLike,
     IChainlinkFeedRegistryLike
-} from "pwn/periphery/loan/module/default/PWNUniV3LPValueDefaultModule.sol";
+} from "pwn/periphery/loan/module/default/PWNUniswapV3LPValueDefaultModule.sol";
 
-import { PWNUniV3LPValueDefaultModuleHarness } from "test/harness/PWNUniV3LPValueDefaultModuleHarness.sol";
+import { PWNUniswapV3LPValueDefaultModuleHarness } from "test/harness/PWNUniswapV3LPValueDefaultModuleHarness.sol";
 
 using MultiToken for address;
 
-abstract contract PWNUniV3LPValueDefaultModuleTest is Test {
+abstract contract PWNUniswapV3LPValueDefaultModuleTest is Test {
 
-    PWNUniV3LPValueDefaultModuleHarness defaultModule;
+    PWNUniswapV3LPValueDefaultModuleHarness defaultModule;
     address hub = makeAddr("hub");
     address uniswapV3PositionManager = makeAddr("uniswapV3PositionManager");
     address uniswapV3Factory = makeAddr("uniswapV3Factory");
@@ -44,7 +44,7 @@ abstract contract PWNUniV3LPValueDefaultModuleTest is Test {
 
 
     function setUp() public virtual {
-        defaultModule = new PWNUniV3LPValueDefaultModuleHarness(
+        defaultModule = new PWNUniswapV3LPValueDefaultModuleHarness(
             PWNHub(hub),
             INonfungiblePositionManager(uniswapV3PositionManager),
             uniswapV3Factory,
@@ -141,7 +141,7 @@ abstract contract PWNUniV3LPValueDefaultModuleTest is Test {
         bool[] memory feedInvertFlags
     ) internal pure returns (bytes memory) {
         return abi.encode(
-            PWNUniV3LPValueDefaultModule.ProposerData(
+            PWNUniswapV3LPValueDefaultModule.ProposerData(
                 lltv, token0Denominator, feedIntermediaryDenominations, feedInvertFlags
             )
         );
@@ -154,12 +154,12 @@ abstract contract PWNUniV3LPValueDefaultModuleTest is Test {
 |*  # ON LOAN CREATED                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNUniV3LPValueDefaultModule_OnLoanCreated_Test is PWNUniV3LPValueDefaultModuleTest {
+contract PWNUniswapV3LPValueDefaultModule_OnLoanCreated_Test is PWNUniswapV3LPValueDefaultModuleTest {
 
     function test_shouldFail_whenCallerIsNotActiveLoan() external {
         _mockHubTag(loanContract, PWNHubTags.ACTIVE_LOAN, false);
 
-        vm.expectRevert(PWNUniV3LPValueDefaultModule.CallerNotActiveLoan.selector);
+        vm.expectRevert(PWNUniswapV3LPValueDefaultModule.CallerNotActiveLoan.selector);
         vm.prank(loanContract);
         defaultModule.onLoanCreated(loanId, encodedProposerData);
     }
@@ -168,7 +168,7 @@ contract PWNUniV3LPValueDefaultModule_OnLoanCreated_Test is PWNUniV3LPValueDefau
         vm.prank(loanContract);
         defaultModule.onLoanCreated(loanId, encodedProposerData);
 
-        vm.expectRevert(PWNUniV3LPValueDefaultModule.LoanAlreadyInitialized.selector);
+        vm.expectRevert(PWNUniswapV3LPValueDefaultModule.LoanAlreadyInitialized.selector);
         vm.prank(loanContract);
         defaultModule.onLoanCreated(loanId, encodedProposerData);
     }
@@ -177,7 +177,7 @@ contract PWNUniV3LPValueDefaultModule_OnLoanCreated_Test is PWNUniV3LPValueDefau
         loan.collateral = makeAddr("coll").ERC20(100);
         _mockGetLOAN(loanId, loan);
 
-        vm.expectRevert(PWNUniV3LPValueDefaultModule.UnsupportedCollateral.selector);
+        vm.expectRevert(PWNUniswapV3LPValueDefaultModule.UnsupportedCollateral.selector);
         vm.prank(loanContract);
         defaultModule.onLoanCreated(loanId, encodedProposerData);
     }
@@ -186,18 +186,18 @@ contract PWNUniV3LPValueDefaultModule_OnLoanCreated_Test is PWNUniV3LPValueDefau
         loan.collateral = makeAddr("coll").ERC721(55);
         _mockGetLOAN(loanId, loan);
 
-        vm.expectRevert(PWNUniV3LPValueDefaultModule.UnsupportedCollateral.selector);
+        vm.expectRevert(PWNUniswapV3LPValueDefaultModule.UnsupportedCollateral.selector);
         vm.prank(loanContract);
         defaultModule.onLoanCreated(loanId, encodedProposerData);
     }
 
     function testFuzz_shouldFail_whenInvalidLLTV() external {
         vm.prank(loanContract);
-        vm.expectRevert(PWNUniV3LPValueDefaultModule.InvalidLLTV.selector);
+        vm.expectRevert(PWNUniswapV3LPValueDefaultModule.InvalidLLTV.selector);
         defaultModule.onLoanCreated(loanId, _encodeProposerData(0, false, new address[](0), new bool[](0)));
 
         vm.prank(loanContract);
-        vm.expectRevert(PWNUniV3LPValueDefaultModule.InvalidLLTV.selector);
+        vm.expectRevert(PWNUniswapV3LPValueDefaultModule.InvalidLLTV.selector);
         defaultModule.onLoanCreated(loanId, _encodeProposerData(1e4 + 1, false, new address[](0), new bool[](0)));
     }
 
@@ -259,7 +259,7 @@ contract PWNUniV3LPValueDefaultModule_OnLoanCreated_Test is PWNUniV3LPValueDefau
 |*  # IS DEFAULTED                                          *|
 |*----------------------------------------------------------*/
 
-contract PWNUniV3LPValueDefaultModule_IsDefaulted_Test is PWNUniV3LPValueDefaultModuleTest {
+contract PWNUniswapV3LPValueDefaultModule_IsDefaulted_Test is PWNUniswapV3LPValueDefaultModuleTest {
 
     uint256 lpValue;
 
@@ -341,7 +341,7 @@ contract PWNUniV3LPValueDefaultModule_IsDefaulted_Test is PWNUniV3LPValueDefault
 |*  # DEFAULT DATA                                          *|
 |*----------------------------------------------------------*/
 
-contract PWNUniV3LPValueDefaultModule_DefaultData_Test is PWNUniV3LPValueDefaultModuleTest {
+contract PWNUniswapV3LPValueDefaultModule_DefaultData_Test is PWNUniswapV3LPValueDefaultModuleTest {
 
     function testFuzz_shouldReturnDefaultData(uint256 lltv) external {
         lltv = bound(lltv, 1, 10 ** defaultModule.LLTV_DECIMALS());
@@ -356,7 +356,7 @@ contract PWNUniV3LPValueDefaultModule_DefaultData_Test is PWNUniV3LPValueDefault
         feedIntermediaryDenominations[0] = makeAddr("intermediary");
 
         vm.prank(loanContract);
-        defaultModule.onLoanCreated(loanId, abi.encode(PWNUniV3LPValueDefaultModule.ProposerData(
+        defaultModule.onLoanCreated(loanId, abi.encode(PWNUniswapV3LPValueDefaultModule.ProposerData(
             lltv,
             true,
             feedIntermediaryDenominations,
@@ -385,7 +385,7 @@ contract PWNUniV3LPValueDefaultModule_DefaultData_Test is PWNUniV3LPValueDefault
 |*  # ENCODE/DECODE PRICE FEED DATA                         *|
 |*----------------------------------------------------------*/
 
-contract PWNUniV3LPValueDefaultModule_EncodeDecodePriceFeedData_Test is PWNUniV3LPValueDefaultModuleTest {
+contract PWNUniswapV3LPValueDefaultModule_EncodeDecodePriceFeedData_Test is PWNUniswapV3LPValueDefaultModuleTest {
 
     function testFuzz_shouldFail_whenFeedInvertFlagsAndFeedIntermediaryDenominationsLengthMismatch(
         uint256 invertFlagsLength,
