@@ -8,34 +8,34 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 import { IPWNInterestModule } from "pwn/core/loan/module/IPWNInterestModule.sol";
 import { IPWNDefaultModule } from "pwn/core/loan/module/IPWNDefaultModule.sol";
 import {
-    PWNClaimLiquidationModule,
+    PWNOpenLiquidationModule,
     IERC721Receiver, IERC1155Receiver, IERC165,
     PWNLoan,
     IPWNLiquidationModule, LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE
-} from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
+} from "pwn/periphery/loan/module/liquidation/PWNOpenLiquidationModule.sol";
 
 using MultiToken for address;
 
-abstract contract PWNClaimLiquidationModuleTest is Test {
+abstract contract PWNOpenLiquidationModuleTest is Test {
 
-    PWNClaimLiquidationModule liquidationModule;
+    PWNOpenLiquidationModule liquidationModule;
     address loanContract = makeAddr("loanContract");
     address loanToken = makeAddr("loanToken");
     address liquidator = makeAddr("liquidator");
+    address creditAddress = makeAddr("creditAddress");
     MultiToken.Asset collateral = makeAddr("collateral").ERC721(44);
     uint256 loanId = 1;
 
 
     function setUp() public virtual {
-        liquidationModule = new PWNClaimLiquidationModule();
+        liquidationModule = new PWNOpenLiquidationModule();
 
         vm.mockCall(loanContract, abi.encodeWithSignature("loanToken()"), abi.encode(loanToken));
         vm.mockCall(loanToken, abi.encodeWithSignature("ownerOf(uint256)", loanId), abi.encode(liquidator));
-        vm.mockCall(
-            collateral.assetAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)"),
-            abi.encode("")
-        );
+        vm.mockCall(creditAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)"), abi.encode(true));
+        vm.mockCall(creditAddress, abi.encodeWithSignature("approve(address,uint256)"), abi.encode(true));
+        vm.mockCall(creditAddress, abi.encodeWithSignature("allowance(address,address)"), abi.encode(0));
+        vm.mockCall(collateral.assetAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)"), abi.encode(""));
     }
 
 }
@@ -45,7 +45,7 @@ abstract contract PWNClaimLiquidationModuleTest is Test {
 |*  # ON LOAN CREATED                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNClaimLiquidationModule_OnLoanCreated_Test is PWNClaimLiquidationModuleTest {
+contract PWNOpenLiquidationModule_OnLoanCreated_Test is PWNOpenLiquidationModuleTest {
 
     function test_shouldReturnInitHookValue() external {
         assertEq(liquidationModule.onLoanCreated(loanId, ""), LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE);
@@ -58,29 +58,36 @@ contract PWNClaimLiquidationModule_OnLoanCreated_Test is PWNClaimLiquidationModu
 |*  # LIQUIDATE                                             *|
 |*----------------------------------------------------------*/
 
-contract PWNClaimLiquidationModule_Liquidate_Test is PWNClaimLiquidationModuleTest {
-
-    function test_shouldFail_whenLiquidatorIsNotLoanOwner() external {
-        address loanOwner = makeAddr("loanOwner");
-        vm.mockCall(loanToken, abi.encodeWithSignature("ownerOf(uint256)", loanId), abi.encode(loanOwner));
-
-        vm.expectCall(loanContract, abi.encodeWithSignature("loanToken()"));
-        vm.expectCall(loanToken, abi.encodeWithSignature("ownerOf(uint256)", loanId));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PWNClaimLiquidationModule.LiquidatorNotLoanOwner.selector,
-                loanOwner, liquidator, loanContract, loanId
-            )
-        );
-        vm.prank(loanContract);
-        liquidationModule.liquidate(loanId, liquidator, 0, address(0), collateral, "");
-    }
+contract PWNOpenLiquidationModule_Liquidate_Test is PWNOpenLiquidationModuleTest {
 
     function test_shouldFail_whenDataIsNotEmpty() external {
-        vm.expectRevert(PWNClaimLiquidationModule.LiquidationDataNotEmpty.selector);
+        vm.expectRevert(PWNOpenLiquidationModule.LiquidationDataNotEmpty.selector);
         vm.prank(loanContract);
-        liquidationModule.liquidate(loanId, liquidator, 0, address(0), collateral, "data");
+        liquidationModule.liquidate(loanId, liquidator, 1, creditAddress, collateral, "data");
+    }
+
+    function testFuzz_shouldTransferDebtFromLiquidator(uint256 debt) external {
+        debt = bound(debt, 1, type(uint256).max);
+
+        vm.expectCall(
+            creditAddress,
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", liquidator, address(liquidationModule), debt)
+        );
+
+        vm.prank(loanContract);
+        liquidationModule.liquidate(loanId, liquidator, debt, creditAddress, collateral, "");
+    }
+
+    function testFuzz_shouldApproveDebtAmountToLoanContract(uint256 debt) external {
+        debt = bound(debt, 1, type(uint256).max);
+
+        vm.expectCall(
+            creditAddress,
+            abi.encodeWithSignature("approve(address,uint256)", loanContract, debt)
+        );
+
+        vm.prank(loanContract);
+        liquidationModule.liquidate(loanId, liquidator, debt, creditAddress, collateral, "");
     }
 
     function test_shouldTransferCollateralToLiquidator() external {
@@ -90,13 +97,15 @@ contract PWNClaimLiquidationModule_Liquidate_Test is PWNClaimLiquidationModuleTe
         );
 
         vm.prank(loanContract);
-        liquidationModule.liquidate(loanId, liquidator, 0, address(0), collateral, "");
+        liquidationModule.liquidate(loanId, liquidator, 1, creditAddress, collateral, "");
     }
 
-    function test_shouldReturnZero() external {
+    function testFuzz_shouldReturnDebtAmount(uint256 debt) external {
+        debt = bound(debt, 1, type(uint256).max);
+
         vm.prank(loanContract);
-        uint256 result = liquidationModule.liquidate(loanId, liquidator, 0, address(0), collateral, "");
-        assertEq(result, 0);
+        uint256 result = liquidationModule.liquidate(loanId, liquidator, debt, creditAddress, collateral, "");
+        assertEq(result, debt);
     }
 
 }
@@ -106,7 +115,7 @@ contract PWNClaimLiquidationModule_Liquidate_Test is PWNClaimLiquidationModuleTe
 |*  # RECEIVED HOOKS                                        *|
 |*----------------------------------------------------------*/
 
-contract PWNClaimLiquidationModule_ReceivedHooks_Test is PWNClaimLiquidationModuleTest {
+contract PWNOpenLiquidationModule_ReceivedHooks_Test is PWNOpenLiquidationModuleTest {
 
     function test_shouldReturnSelector_whenERC721Received() external {
         bytes4 selector = liquidationModule.onERC721Received(
@@ -136,7 +145,7 @@ contract PWNClaimLiquidationModule_ReceivedHooks_Test is PWNClaimLiquidationModu
 |*  # SUPPORTED INTERFACES                                  *|
 |*----------------------------------------------------------*/
 
-contract PWNClaimLiquidationModule_SupportedInterfaces_Test is PWNClaimLiquidationModuleTest {
+contract PWNOpenLiquidationModule_SupportedInterfaces_Test is PWNOpenLiquidationModuleTest {
 
     function test_shouldSupportIPWNLiquidationModule() external {
         assertTrue(liquidationModule.supportsInterface(type(IPWNLiquidationModule).interfaceId));

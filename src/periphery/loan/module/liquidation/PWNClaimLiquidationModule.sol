@@ -6,7 +6,11 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 import { IERC1155Receiver, IERC165 } from "openzeppelin/token/ERC1155/IERC1155Receiver.sol";
 
-import { IPWNLiquidationModule, IPWNModuleInitializationHook, LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNLiquidationModule.sol";
+import {
+    IPWNLiquidationModule,
+    IPWNModuleInitializationHook,
+    LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE
+} from "pwn/core/loan/module/IPWNLiquidationModule.sol";
 import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
 
 
