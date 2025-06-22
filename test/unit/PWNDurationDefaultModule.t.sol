@@ -5,8 +5,6 @@ import { Test } from "forge-std/Test.sol";
 
 import { MultiToken } from "MultiToken/MultiToken.sol";
 
-import { IPWNInterestModule } from "pwn/core/loan/module/IPWNInterestModule.sol";
-import { IPWNLiquidationModule } from "pwn/core/loan/module/IPWNLiquidationModule.sol";
 import {
     PWNDurationDefaultModule,
     PWNHub,
