@@ -4,11 +4,11 @@ pragma solidity 0.8.16;
 import {
     PWNDirectLenderRepaymentHook,
     IPWNLenderRepaymentHook
-} from "pwn/periphery/loan/hook/lender/repayment/PWNDirectLenderRepaymentHook.sol";
+} from "pwn/periphery/loan/hook/lender/PWNDirectLenderRepaymentHook.sol";
 import {
     PWNRefinanceBorrowerCreateHook,
     IPWNBorrowerCreateHook
-} from "pwn/periphery/loan/hook/borrower/create/PWNRefinanceBorrowerCreateHook.sol";
+} from "pwn/periphery/loan/hook/borrower/PWNRefinanceBorrowerCreateHook.sol";
 
 import {
     MultiToken,
