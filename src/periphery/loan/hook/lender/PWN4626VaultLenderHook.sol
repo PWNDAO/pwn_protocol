@@ -3,7 +3,6 @@ pragma solidity 0.8.16;
 
 import { MultiToken } from "MultiToken/MultiToken.sol";
 
-
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import { IPWNLenderCreateHook, LENDER_CREATE_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNLenderCreateHook.sol";
@@ -20,7 +19,7 @@ contract PWN4626VaultLenderHook is IPWNLenderCreateHook, IPWNLenderRepaymentHook
     using MultiToken for address;
     using MultiToken for MultiToken.Asset;
 
-    /** @notice Reference to the PWN Hub contract. */
+    /** @notice Reference to the PWN Hub contract.*/
     PWNHub public immutable hub;
 
     /**
