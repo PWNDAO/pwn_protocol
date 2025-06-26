@@ -3,13 +3,13 @@ run-name: ${{ github.actor }} prepared Wake Arena PR
 on:
   push:
     branches:
-      - master #todo change to your main branch
+      - v1.5
 jobs:
   perform-audit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 
+        uses: actions/checkout@v4
         with:
           submodules: recursive # Git submodules installation, remove if not valid for your project
       - name: Setup Wake
