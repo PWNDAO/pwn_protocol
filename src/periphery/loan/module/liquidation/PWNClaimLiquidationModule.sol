@@ -20,7 +20,6 @@ import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
  * @dev Only the LOAN token owner can call liquidate to claim the collateral. No repayment is required.
  */
 contract PWNClaimLiquidationModule is IPWNLiquidationModule, IERC721Receiver, IERC1155Receiver {
-    using MultiToken for address;
     using MultiToken for MultiToken.Asset;
 
     /** @notice Thrown when the liquidator is not the LOAN token owner.*/
