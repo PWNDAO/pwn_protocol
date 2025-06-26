@@ -121,14 +121,6 @@ abstract contract Deployments is CommonBase {
         }
     }
 
-    function _contains(uint256[] storage array, uint256 value) private view returns (bool) {
-        for (uint256 i; i < array.length; ++i)
-            if (array[i] == value)
-                return true;
-
-        return false;
-    }
-
     function _protocolNotDeployedOnSelectedChain() internal virtual {
         // Override
     }
