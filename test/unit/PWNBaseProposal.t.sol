@@ -30,11 +30,11 @@ abstract contract PWNBaseProposalTest is Test {
     string name = "PWNBaseProposal";
     string version = "1.0";
 
-    PWNBaseProposalHarness proposal;
+    PWNBaseProposalHarness proposalContract;
 
 
     function setUp() virtual public {
-        proposal = new PWNBaseProposalHarness(hub, revokedNonce, config, utilizedCredit, name, version);
+        proposalContract = new PWNBaseProposalHarness(hub, revokedNonce, config, utilizedCredit, name, version);
     }
 
 
@@ -71,7 +71,7 @@ contract PWNBaseProposal_GetMultiproposalHash_Test is PWNBaseProposalTest {
             ))
         ));
 
-        assertEq(proposal.getMultiproposalHash(multiproposal), expectedHash);
+        assertEq(proposalContract.getMultiproposalHash(multiproposal), expectedHash);
     }
 
 }
@@ -84,7 +84,7 @@ contract PWNBaseProposal_GetMultiproposalHash_Test is PWNBaseProposalTest {
 contract PWNBaseProposal_GetProposalHash_Test is PWNBaseProposalTest {
 
     function testFuzz_shouldReturnProposalHash(bytes32 proposalTypehash) external {
-        bytes memory encodedProposal = abi.encode("proposal data");
+        bytes memory encodedProposal = abi.encode("proposalContract data");
 
         bytes32 expectedHash = keccak256(abi.encodePacked(
             hex"1901",
@@ -93,7 +93,7 @@ contract PWNBaseProposal_GetProposalHash_Test is PWNBaseProposalTest {
                 keccak256(abi.encodePacked(name)),
                 keccak256(abi.encodePacked(version)),
                 block.chainid,
-                address(proposal)
+                address(proposalContract)
             )),
             keccak256(abi.encodePacked(
                 proposalTypehash,
@@ -101,7 +101,7 @@ contract PWNBaseProposal_GetProposalHash_Test is PWNBaseProposalTest {
             ))
         ));
 
-        assertEq(proposal.exposed_getProposalHash(proposalTypehash, encodedProposal), expectedHash);
+        assertEq(proposalContract.exposed_getProposalHash(proposalTypehash, encodedProposal), expectedHash);
     }
 
 }
@@ -117,15 +117,15 @@ contract PWNBaseProposal_MakeProposal_Test is PWNBaseProposalTest {
         vm.assume(proposer != address(this));
 
         vm.expectRevert(abi.encodeWithSelector(PWNBaseProposal.CallerIsNotStatedProposer.selector, proposer));
-        proposal.exposed_makeProposal(keccak256("proposal hash"), proposer);
+        proposalContract.exposed_makeProposal(keccak256("proposalContract hash"), proposer);
     }
 
     function testFuzz_shouldMakerProposalAsMade(bytes32 proposalHash) external {
-        assertFalse(proposal.proposalsMade(proposalHash));
+        assertFalse(proposalContract.proposalsMade(proposalHash));
 
-        proposal.exposed_makeProposal(proposalHash, address(this));
+        proposalContract.exposed_makeProposal(proposalHash, address(this));
 
-        assertTrue(proposal.proposalsMade(proposalHash));
+        assertTrue(proposalContract.proposalsMade(proposalHash));
     }
 
 }
@@ -143,7 +143,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         super.setUp();
 
         params = PWNBaseProposal.CheckInputs({
-            proposalHash: keccak256("proposal hash"),
+            proposalHash: keccak256("proposalContract hash"),
             acceptor: acceptor,
             creditAmount: 10 ether,
             availableCreditLimit: 0,
@@ -173,7 +173,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
             abi.encodeWithSelector(PWNBaseProposal.CallerNotLoanContract.selector, caller, loanContract)
         );
         vm.prank(caller);
-        proposal.exposed_checkProposal(params, new bytes32[](0), "");
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), "");
     }
 
     function test_shouldFail_whenCallerNotTagged_ACTIVE_LOAN() external {
@@ -187,7 +187,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
             abi.encodeWithSelector(PWNBaseProposal.AddressMissingHubTag.selector, loanContract, PWNHubTags.ACTIVE_LOAN)
         );
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), "");
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), "");
     }
 
     function testFuzz_shouldFail_whenInvalidSignature_whenEOA(uint256 randomPK) external {
@@ -198,7 +198,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
             abi.encodeWithSelector(PWNSignatureChecker.InvalidSignature.selector, proposer, params.proposalHash)
         );
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), _sign(randomPK, params.proposalHash));
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), _sign(randomPK, params.proposalHash));
     }
 
     function test_shouldFail_whenInvalidSignature_whenContractAccount() external {
@@ -208,7 +208,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
             abi.encodeWithSelector(PWNSignatureChecker.InvalidSignature.selector, proposer, params.proposalHash)
         );
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), "");
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), "");
     }
 
     function testFuzz_shouldFail_withInvalidSignature_whenEOA_whenMultiproposal(uint256 randomPK) external {
@@ -218,11 +218,11 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         bytes32[] memory proposalInclusionProof = new bytes32[](1);
         proposalInclusionProof[0] = keccak256("leaf1");
         bytes32 root = _hashMerkleTreeNodes(params.proposalHash, proposalInclusionProof[0]);
-        bytes32 multiproposalHash = proposal.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
+        bytes32 multiproposalHash = proposalContract.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
 
         vm.expectRevert(abi.encodeWithSelector(PWNSignatureChecker.InvalidSignature.selector, proposer, multiproposalHash));
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, proposalInclusionProof, _sign(randomPK, multiproposalHash));
+        proposalContract.exposed_checkProposal(params, proposalInclusionProof, _sign(randomPK, multiproposalHash));
     }
 
     function test_shouldFail_whenInvalidSignature_whenContractAccount_whenMultiproposal() external {
@@ -231,11 +231,11 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         bytes32[] memory proposalInclusionProof = new bytes32[](1);
         proposalInclusionProof[0] = keccak256("leaf1");
         bytes32 root = _hashMerkleTreeNodes(params.proposalHash, proposalInclusionProof[0]);
-        bytes32 multiproposalHash = proposal.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
+        bytes32 multiproposalHash = proposalContract.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
 
         vm.expectRevert(abi.encodeWithSelector(PWNSignatureChecker.InvalidSignature.selector, proposer, multiproposalHash));
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, proposalInclusionProof, "");
+        proposalContract.exposed_checkProposal(params, proposalInclusionProof, "");
     }
 
     function test_shouldFail_withInvalidInclusionProof() external {
@@ -243,31 +243,31 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         proposalInclusionProof[0] = keccak256("other leaf1");
         bytes32 leaf = keccak256("leaf1");
         bytes32 root = _hashMerkleTreeNodes(params.proposalHash, leaf);
-        bytes32 multiproposalHash = proposal.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
+        bytes32 multiproposalHash = proposalContract.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
 
         bytes32 actualRoot = _hashMerkleTreeNodes(params.proposalHash, proposalInclusionProof[0]);
-        bytes32 actualMultiproposalHash = proposal.getMultiproposalHash(PWNBaseProposal.Multiproposal(actualRoot));
+        bytes32 actualMultiproposalHash = proposalContract.getMultiproposalHash(PWNBaseProposal.Multiproposal(actualRoot));
         vm.expectRevert(
             abi.encodeWithSelector(PWNSignatureChecker.InvalidSignature.selector, proposer, actualMultiproposalHash)
         );
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, proposalInclusionProof, _sign(proposerPK, multiproposalHash));
+        proposalContract.exposed_checkProposal(params, proposalInclusionProof, _sign(proposerPK, multiproposalHash));
     }
 
     function test_shouldPass_whenProposalMadeOnchain() external {
         vm.store(
-            address(proposal),
+            address(proposalContract),
             keccak256(abi.encode(params.proposalHash, PROPOSALS_MADE_SLOT)),
             bytes32(uint256(1))
         );
 
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), "");
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), "");
     }
 
     function test_shouldPass_withValidSignature_whenEOA_whenStandardSignature() external {
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
     }
 
     function test_shouldPass_whenValidSignature_whenContractAccount() external {
@@ -281,7 +281,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         );
 
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), signature);
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), signature);
     }
 
     function test_shouldPass_withValidSignature_whenEOA_whenStandardSignature_whenMultiproposal() external {
@@ -289,10 +289,10 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         proposalInclusionProof[0] = keccak256("leaf1");
 
         bytes32 root = _hashMerkleTreeNodes(params.proposalHash, proposalInclusionProof[0]);
-        bytes32 multiproposalHash = proposal.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
+        bytes32 multiproposalHash = proposalContract.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
 
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, proposalInclusionProof, _sign(proposerPK, multiproposalHash));
+        proposalContract.exposed_checkProposal(params, proposalInclusionProof, _sign(proposerPK, multiproposalHash));
     }
 
     function test_shouldPass_whenValidSignature_whenContractAccount_whenMultiproposal() external {
@@ -302,7 +302,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         proposalInclusionProof[0] = keccak256("leaf1");
         bytes32 root = _hashMerkleTreeNodes(params.proposalHash, proposalInclusionProof[0]);
 
-        bytes32 multiproposalHash = proposal.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
+        bytes32 multiproposalHash = proposalContract.getMultiproposalHash(PWNBaseProposal.Multiproposal(root));
         bytes memory signature = "some random string";
 
         vm.mockCall(
@@ -312,7 +312,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         );
 
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, proposalInclusionProof, signature);
+        proposalContract.exposed_checkProposal(params, proposalInclusionProof, signature);
     }
 
     function test_shouldFail_whenProposerIsSameAsAcceptor() external {
@@ -320,7 +320,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
 
         vm.expectRevert(abi.encodeWithSelector(PWNBaseProposal.AcceptorIsProposer.selector, proposer));
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
     }
 
     function testFuzz_shouldFail_whenProposalExpired(uint256 timestamp) external {
@@ -329,7 +329,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
 
         vm.expectRevert(abi.encodeWithSelector(PWNBaseProposal.Expired.selector, timestamp, params.expiration));
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
     }
 
     function testFuzz_shouldFail_whenNonceNotUsable(uint256 nonceSpace, uint256 nonce) external {
@@ -348,7 +348,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
 
         vm.expectRevert(abi.encodeWithSelector(PWNRevokedNonce.NonceNotUsable.selector, proposer, nonceSpace, nonce));
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
     }
 
     function test_shouldRevokeNonce_whenAvailableCreditLimitEqualToZero(uint256 nonceSpace, uint256 nonce) external {
@@ -362,7 +362,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         );
 
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
     }
 
     function testFuzz_shouldUtilizeCredit(bytes32 id, uint256 creditAmount, uint256 limit) external {
@@ -385,7 +385,7 @@ contract PWNBaseProposal_CheckProposal_Test is PWNBaseProposalTest {
         );
 
         vm.prank(loanContract);
-        proposal.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
+        proposalContract.exposed_checkProposal(params, new bytes32[](0), _sign(proposerPK, params.proposalHash));
     }
 
 }
