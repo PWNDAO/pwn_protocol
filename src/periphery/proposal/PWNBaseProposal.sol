@@ -72,8 +72,6 @@ abstract contract PWNBaseProposal is IPWNProposal {
     error CallerIsNotStatedProposer(address addr);
     /** @notice Thrown when proposal acceptor and proposer are the same.*/
     error AcceptorIsProposer(address addr);
-    /** @notice Thrown when a default date is in the past.*/
-    error DefaultDateInPast(uint256 defaultDate, uint256 current);
 
 
     /*----------------------------------------------------------*|

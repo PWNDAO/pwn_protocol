@@ -165,8 +165,6 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
     error NothingToClaim();
     /** @notice Thrown when hook returns an invalid value.*/
     error InvalidHookReturnValue(bytes32 expected, bytes32 current);
-    /** @notice Thrown when liquidation caller is not a liquidation module.*/
-    error CallerNotLiquidationModule();
     /** @notice Thrown when caller is not a loan borrower.*/
     error CallerNotBorrower();
     /** @notice Thrown when hook is not set or is zero address.*/
