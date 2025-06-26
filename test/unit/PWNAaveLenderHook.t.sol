@@ -96,7 +96,7 @@ contract PWNAaveLenderHook_OnLoanCreated_Test is PWNAaveLenderHookTest {
     }
 
     function testFuzz_shouldFail_whenHealthFactorIsBelowMin(uint256 healthFactor) external {
-        healthFactor = bound(healthFactor, 0, hook.MIN_HEALTH_FACTOR());
+        healthFactor = bound(healthFactor, 0, hook.MIN_HEALTH_FACTOR() - 1);
         _mockHealthFactor(healthFactor);
 
         vm.expectRevert(

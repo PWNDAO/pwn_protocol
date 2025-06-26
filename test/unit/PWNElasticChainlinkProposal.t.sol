@@ -11,8 +11,7 @@ import {
     IChainlinkAggregatorLike,
     IChainlinkFeedRegistryLike,
     Chainlink,
-    MultiToken,
-    Math
+    MultiToken
 } from "pwn/periphery/proposal/PWNElasticChainlinkProposal.sol";
 
 import { PWNElasticChainlinkProposalHarness } from "test/harness/PWNElasticChainlinkProposalHarness.sol";
@@ -31,7 +30,7 @@ abstract contract PWNElasticChainlinkProposalTest is Test {
     address loanContract = makeAddr("loanContract");
     uint256 proposerPK = 73661723;
     address proposer = vm.addr(proposerPK);
-    address acceptor = makeAddr("acecptor");
+    address acceptor = makeAddr("acceptor");
     address token = makeAddr("token");
     address feedRegistry = makeAddr("feedRegistry");
     address feed = makeAddr("feed");
@@ -223,8 +222,7 @@ contract PWNElasticChainlinkProposal_EncodeDecodeProposalData_Test is PWNElastic
         assertEq(proposal.collateralAddress, _proposal.collateralAddress);
         assertEq(proposal.collateralId, _proposal.collateralId);
         assertEq(proposal.creditAddress, _proposal.creditAddress);
-        assertEq(proposal.feedIntermediaryDenominations.length, _proposal.feedIntermediaryDenominations.length);
-        assertEq(keccak256(abi.encode(proposal.feedIntermediaryDenominations)), keccak256(abi.encode(_proposal.feedIntermediaryDenominations)));
+        assertEq(proposal.feedIntermediaryDenominations, _proposal.feedIntermediaryDenominations);
         assertEq(proposal.feedInvertFlags.length, _proposal.feedInvertFlags.length);
         assertEq(keccak256(abi.encode(proposal.feedInvertFlags)), keccak256(abi.encode(_proposal.feedInvertFlags)));
         assertEq(proposal.loanToValue, _proposal.loanToValue);

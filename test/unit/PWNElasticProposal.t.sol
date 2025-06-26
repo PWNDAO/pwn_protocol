@@ -65,7 +65,7 @@ abstract contract PWNElasticProposalTest is Test {
         vm.mockCall(hub, abi.encodeWithSignature("hasTag(address,bytes32)"), abi.encode(false));
         vm.mockCall(hub, abi.encodeWithSignature("hasTag(address,bytes32)", loanContract, PWNHubTags.ACTIVE_LOAN), abi.encode(true));
 
-        vm.mockCall(revokedNonce, abi.encodeWithSignature("isNonceRevoked(uint256,uint256)", proposal.nonceSpace, proposal.nonce), abi.encode(false));
+        vm.mockCall(revokedNonce, abi.encodeWithSignature("isNonceUsable(address,uint256,uint256)"), abi.encode(true));
     }
 
 
