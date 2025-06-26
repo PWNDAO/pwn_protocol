@@ -5,23 +5,22 @@ import { Test } from "forge-std/Test.sol";
 
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import {
-    PWNUniswapV3LPSetProposal,
+    PWNUniswapV3LPIndividualProposal,
     PWNBaseProposal,
     Terms,
     IChainlinkFeedRegistryLike,
     IChainlinkAggregatorLike,
     INonfungiblePositionManager,
     MultiToken
-} from "pwn/periphery/proposal/PWNUniswapV3LPSetProposal.sol";
+} from "pwn/periphery/proposal/PWNUniswapV3LPIndividualProposal.sol";
 
-import { PWNUniswapV3LPSetProposalHarness } from "test/harness/PWNUniswapV3LPSetProposalHarness.sol";
+import { PWNUniswapV3LPIndividualProposalHarness } from "test/harness/PWNUniswapV3LPIndividualProposalHarness.sol";
 
 
-abstract contract PWNUniswapV3LPSetProposalTest is Test {
+abstract contract PWNUniswapV3LPIndividualProposalTest is Test {
 
-    PWNUniswapV3LPSetProposalHarness proposalContract;
-    PWNUniswapV3LPSetProposal.Proposal proposal;
-    PWNUniswapV3LPSetProposal.AcceptorValues acceptorValues;
+    PWNUniswapV3LPIndividualProposalHarness proposalContract;
+    PWNUniswapV3LPIndividualProposal.Proposal proposal;
 
     address hub = makeAddr("hub");
     address revokedNonce = makeAddr("revokedNonce");
@@ -51,14 +50,14 @@ abstract contract PWNUniswapV3LPSetProposalTest is Test {
     uint256 token0Value = 101572;
     uint256 token1Value = 331794706808;
 
-    event ProposalMade(bytes32 indexed proposalHash, address indexed proposer, PWNUniswapV3LPSetProposal.Proposal proposal);
+    event ProposalMade(bytes32 indexed proposalHash, address indexed proposer, PWNUniswapV3LPIndividualProposal.Proposal proposal);
 
     function setUp() virtual public {
-        proposalContract = new PWNUniswapV3LPSetProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, uniswapV3Factory, uniswapNFTPositionManager, feedRegistry, address(0), weth);
+        proposalContract = new PWNUniswapV3LPIndividualProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, uniswapV3Factory, uniswapNFTPositionManager, feedRegistry, address(0), weth);
 
-        proposal = PWNUniswapV3LPSetProposal.Proposal({
-            tokenAAllowlist: new address[](0),
-            tokenBAllowlist: new address[](0),
+        proposal = PWNUniswapV3LPIndividualProposal.Proposal({
+            collateralId: collateralId,
+            token0Denominator: true,
             creditAddress: token0,
             feedIntermediaryDenominations: new address[](0),
             feedInvertFlags: new bool[](0),
@@ -76,14 +75,6 @@ abstract contract PWNUniswapV3LPSetProposalTest is Test {
             isProposerLender: true,
             loanContract: loanContract
         });
-        proposal.tokenAAllowlist.push(token0);
-        proposal.tokenBAllowlist.push(token1);
-
-        acceptorValues = PWNUniswapV3LPSetProposal.AcceptorValues({
-            collateralId: collateralId,
-            tokenAIndex: 0,
-            tokenBIndex: 0
-        });
 
         vm.mockCall(address(uniswapNFTPositionManager), abi.encodeWithSignature("factory()"), abi.encode(uniswapV3Factory));
 
@@ -94,18 +85,18 @@ abstract contract PWNUniswapV3LPSetProposalTest is Test {
     }
 
 
-    function _proposalHash(PWNUniswapV3LPSetProposal.Proposal memory _proposal) internal view returns (bytes32) {
+    function _proposalHash(PWNUniswapV3LPIndividualProposal.Proposal memory _proposal) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(
             hex"1901",
             keccak256(abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256("PWNUniswapV3LPSetProposal"),
+                keccak256("PWNUniswapV3LPIndividualProposal"),
                 keccak256("1.5"),
                 block.chainid,
                 address(proposalContract)
             )),
             keccak256(abi.encodePacked(
-                keccak256("Proposal(address[] tokenAAllowlist,address[] tokenBAllowlist,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"),
+                keccak256("Proposal(uint256 collateralId,bool token0Denominator,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"),
                 proposalContract.exposed_erc712EncodeProposal(_proposal)
             ))
         ));
@@ -190,7 +181,7 @@ abstract contract PWNUniswapV3LPSetProposalTest is Test {
 |*  # GET PROPOSAL HASH                                     *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3LPSetProposal_GetProposalHash_Test is PWNUniswapV3LPSetProposalTest {
+contract PWNUniswapV3LPIndividualProposal_GetProposalHash_Test is PWNUniswapV3LPIndividualProposalTest {
 
     function test_shouldReturnProposalHash() external {
         assertEq(_proposalHash(proposal), proposalContract.getProposalHash(proposal));
@@ -203,7 +194,7 @@ contract PWNUniswapV3LPSetProposal_GetProposalHash_Test is PWNUniswapV3LPSetProp
 |*  # MAKE PROPOSAL                                         *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3LPSetProposal_MakeProposal_Test is PWNUniswapV3LPSetProposalTest {
+contract PWNUniswapV3LPIndividualProposal_MakeProposal_Test is PWNUniswapV3LPIndividualProposalTest {
 
     function testFuzz_shouldFail_whenCallerIsNotProposer(address caller) external {
         vm.assume(caller != proposal.proposer);
@@ -240,16 +231,15 @@ contract PWNUniswapV3LPSetProposal_MakeProposal_Test is PWNUniswapV3LPSetProposa
 |*  # ENCODE DECODE PROPOSAL DATA                           *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3LPSetProposal_EncodeDecodeProposalData_Test is PWNUniswapV3LPSetProposalTest {
+contract PWNUniswapV3LPIndividualProposal_EncodeDecodeProposalData_Test is PWNUniswapV3LPIndividualProposalTest {
 
     function test_shouldEncodeDecodedProposalData() external {
         (
-            PWNUniswapV3LPSetProposal.Proposal memory _proposal,
-            PWNUniswapV3LPSetProposal.AcceptorValues memory _acceptorValues
-        ) = proposalContract.decodeProposalData(proposalContract.encodeProposalData(proposal, acceptorValues));
+            PWNUniswapV3LPIndividualProposal.Proposal memory _proposal
+        ) = proposalContract.decodeProposalData(proposalContract.encodeProposalData(proposal));
 
-        assertEq(proposal.tokenAAllowlist, _proposal.tokenAAllowlist);
-        assertEq(proposal.tokenBAllowlist, _proposal.tokenBAllowlist);
+        assertEq(proposal.collateralId, _proposal.collateralId);
+        assertEq(proposal.token0Denominator, _proposal.token0Denominator);
         assertEq(proposal.creditAddress, _proposal.creditAddress);
         assertEq(proposal.feedIntermediaryDenominations, _proposal.feedIntermediaryDenominations);
         assertEq(proposal.feedInvertFlags.length, _proposal.feedInvertFlags.length);
@@ -267,10 +257,6 @@ contract PWNUniswapV3LPSetProposal_EncodeDecodeProposalData_Test is PWNUniswapV3
         assertEq(proposal.proposerSpecHash, _proposal.proposerSpecHash);
         assertEq(proposal.isProposerLender, _proposal.isProposerLender);
         assertEq(proposal.loanContract, _proposal.loanContract);
-
-        assertEq(acceptorValues.collateralId, _acceptorValues.collateralId);
-        assertEq(acceptorValues.tokenAIndex, _acceptorValues.tokenAIndex);
-        assertEq(acceptorValues.tokenBIndex, _acceptorValues.tokenBIndex);
     }
 
 }
@@ -280,7 +266,7 @@ contract PWNUniswapV3LPSetProposal_EncodeDecodeProposalData_Test is PWNUniswapV3
 |*  # GET CREDIT AMOUNT                                     *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3LPSetProposal_GetCreditAmount_Test is PWNUniswapV3LPSetProposalTest {
+contract PWNUniswapV3LPIndividualProposal_GetCreditAmount_Test is PWNUniswapV3LPIndividualProposalTest {
 
     function setUp() virtual override public {
         super.setUp();
@@ -335,7 +321,7 @@ contract PWNUniswapV3LPSetProposal_GetCreditAmount_Test is PWNUniswapV3LPSetProp
 |*  # ACCEPT PROPOSAL                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3LPSetProposal_AcceptProposal_Test is PWNUniswapV3LPSetProposalTest {
+contract PWNUniswapV3LPIndividualProposal_AcceptProposal_Test is PWNUniswapV3LPIndividualProposalTest {
 
     function setUp() virtual public override {
         super.setUp();
@@ -348,10 +334,10 @@ contract PWNUniswapV3LPSetProposal_AcceptProposal_Test is PWNUniswapV3LPSetPropo
     function test_shouldFail_whenZeroMinCreditAmount() external {
         proposal.minCreditAmount = 0;
 
-        bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
+        bytes memory proposalData = proposalContract.encodeProposalData(proposal);
         bytes32 proposalHash = _proposalHash(proposal);
 
-        vm.expectRevert(abi.encodeWithSelector(PWNUniswapV3LPSetProposal.MinCreditAmountNotSet.selector));
+        vm.expectRevert(abi.encodeWithSelector(PWNUniswapV3LPIndividualProposal.MinCreditAmountNotSet.selector));
         vm.prank(loanContract);
         proposalContract.acceptProposal({
             acceptor: acceptor,
@@ -364,12 +350,12 @@ contract PWNUniswapV3LPSetProposal_AcceptProposal_Test is PWNUniswapV3LPSetPropo
     function test_shouldFail_whenCreditAmountLessThanMinCreditAmount() external {
         proposal.minCreditAmount = token0Value + 1;
 
-        bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
+        bytes memory proposalData = proposalContract.encodeProposalData(proposal);
         bytes32 proposalHash = _proposalHash(proposal);
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                PWNUniswapV3LPSetProposal.InsufficientCreditAmount.selector,
+                PWNUniswapV3LPIndividualProposal.InsufficientCreditAmount.selector,
                 token0Value,
                 proposal.minCreditAmount
             )
@@ -383,54 +369,10 @@ contract PWNUniswapV3LPSetProposal_AcceptProposal_Test is PWNUniswapV3LPSetPropo
         });
     }
 
-    function test_shouldFail_whenLPPairNotAllowlisted() external {
-        proposal.tokenAAllowlist[0] = token;
-        proposal.tokenBAllowlist[0] = token1;
-
-        bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
-        bytes32 proposalHash = _proposalHash(proposal);
-
-        vm.expectRevert(abi.encodeWithSelector(PWNUniswapV3LPSetProposal.InvalidLPTokenPair.selector));
-        vm.prank(loanContract);
-        proposalContract.acceptProposal({
-            acceptor: acceptor,
-            proposalData: proposalData,
-            proposalInclusionProof: new bytes32[](0),
-            signature: _sign(proposerPK, proposalHash)
-        });
-
-        proposal.tokenAAllowlist[0] = token0;
-        proposal.tokenBAllowlist[0] = token;
-        proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
-        proposalHash = _proposalHash(proposal);
-
-        vm.expectRevert(abi.encodeWithSelector(PWNUniswapV3LPSetProposal.InvalidLPTokenPair.selector));
-        vm.prank(loanContract);
-        proposalContract.acceptProposal({
-            acceptor: acceptor,
-            proposalData: proposalData,
-            proposalInclusionProof: new bytes32[](0),
-            signature: _sign(proposerPK, proposalHash)
-        });
-
-        proposal.tokenAAllowlist[0] = token;
-        proposal.tokenBAllowlist[0] = token;
-        proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
-        proposalHash = _proposalHash(proposal);
-
-        vm.expectRevert(abi.encodeWithSelector(PWNUniswapV3LPSetProposal.InvalidLPTokenPair.selector));
-        vm.prank(loanContract);
-        proposalContract.acceptProposal({
-            acceptor: acceptor,
-            proposalData: proposalData,
-            proposalInclusionProof: new bytes32[](0),
-            signature: _sign(proposerPK, proposalHash)
-        });
-    }
-
     function test_shouldCallLoanContractWithLoanTerms() external {
         proposal.isProposerLender = true;
-        bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
+
+        bytes memory proposalData = proposalContract.encodeProposalData(proposal);
         bytes32 proposalHash = _proposalHash(proposal);
 
         vm.prank(loanContract);
@@ -447,7 +389,7 @@ contract PWNUniswapV3LPSetProposal_AcceptProposal_Test is PWNUniswapV3LPSetPropo
         assertEq(terms.proposerSpecHash, proposal.proposerSpecHash);
         assertEq(uint8(terms.collateral.category), uint8(MultiToken.Category.ERC721));
         assertEq(terms.collateral.assetAddress, uniswapNFTPositionManager);
-        assertEq(terms.collateral.id, acceptorValues.collateralId);
+        assertEq(terms.collateral.id, proposal.collateralId);
         assertEq(terms.collateral.amount, 0);
         assertEq(terms.creditAddress, proposal.creditAddress);
         assertEq(terms.principal, token0Value); // with LTV = 100%
@@ -461,7 +403,8 @@ contract PWNUniswapV3LPSetProposal_AcceptProposal_Test is PWNUniswapV3LPSetPropo
         assertEq(terms.liquidationModuleProposerData.length, 0);
 
         proposal.isProposerLender = false;
-        proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
+
+        proposalData = proposalContract.encodeProposalData(proposal);
         proposalHash = _proposalHash(proposal);
 
         vm.prank(loanContract);
@@ -483,12 +426,12 @@ contract PWNUniswapV3LPSetProposal_AcceptProposal_Test is PWNUniswapV3LPSetPropo
 |*  # ERC712 ENCODE PROPOSAL                                *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3LPSetProposal_Erc712EncodeProposal_Test is PWNUniswapV3LPSetProposalTest {
+contract PWNUniswapV3LPIndividualProposal_Erc712EncodeProposal_Test is PWNUniswapV3LPIndividualProposalTest {
 
     function test_shouldERC712EncodeProposal() external {
-        PWNUniswapV3LPSetProposal.ERC712Proposal memory proposalErc712 = PWNUniswapV3LPSetProposal.ERC712Proposal(
-            keccak256(abi.encodePacked(proposal.tokenAAllowlist)),
-            keccak256(abi.encodePacked(proposal.tokenBAllowlist)),
+        PWNUniswapV3LPIndividualProposal.ERC712Proposal memory proposalErc712 = PWNUniswapV3LPIndividualProposal.ERC712Proposal(
+            proposal.collateralId,
+            proposal.token0Denominator,
             proposal.creditAddress,
             keccak256(abi.encodePacked(proposal.feedIntermediaryDenominations)),
             keccak256(abi.encodePacked(proposal.feedInvertFlags)),

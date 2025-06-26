@@ -100,7 +100,7 @@ contract PWNUniswapV3LPIndividualProposal is PWNBaseProposal {
         bytes32 utilizedCreditId;
         uint256 nonceSpace;
         uint256 nonce;
-        uint40 expiration;
+        uint256 expiration;
         // General proposal
         address proposer;
         bytes32 proposerSpecHash;
