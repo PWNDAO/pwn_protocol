@@ -15,6 +15,7 @@ import {
     PWNLoan,
     PWNDurationDefaultModule,
     PWNStableInterestModule,
+    PWNClaimLiquidationModule,
     PWNDutchAuctionProposal,
     PWNElasticChainlinkProposal,
     PWNElasticProposal,
@@ -86,6 +87,7 @@ abstract contract DeploymentTest is Deployments, Test {
 
         __d.stableInterestModule = new PWNStableInterestModule(__d.hub);
         __d.durationDefaultModule = new PWNDurationDefaultModule(__d.hub);
+        __d.claimLiquidationModule = new PWNClaimLiquidationModule();
 
         __d.loanToken = new PWNLOAN(address(__d.hub));
         __d.loan = new PWNLoan(

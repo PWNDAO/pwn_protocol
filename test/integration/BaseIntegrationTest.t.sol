@@ -36,7 +36,7 @@ abstract contract BaseIntegrationTest is DeploymentTest {
     PWNLoan.LenderSpec lenderSpec;
     PWNLoan.BorrowerSpec borrowerSpec;
 
-    function setUp() public override {
+    function setUp() public override virtual {
         super.setUp();
 
         // Deploy tokens
