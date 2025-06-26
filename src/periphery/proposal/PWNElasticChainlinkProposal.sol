@@ -31,7 +31,7 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
     /** @notice Maximum number of intermediary denominations for price conversion.*/
     uint256 public constant MAX_INTERMEDIARY_DENOMINATIONS = 4;
     /** @notice Loan to value decimals. It is used to calculate collateral amount from credit amount.*/
-    uint256 public constant LOAN_TO_VALUE_DECIMALS = 1e4;
+    uint256 public constant LOAN_TO_VALUE_DECIMALS = 4;
 
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(

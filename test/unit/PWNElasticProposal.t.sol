@@ -65,7 +65,7 @@ abstract contract PWNElasticProposalTest is Test {
         vm.mockCall(hub, abi.encodeWithSignature("hasTag(address,bytes32)"), abi.encode(false));
         vm.mockCall(hub, abi.encodeWithSignature("hasTag(address,bytes32)", loanContract, PWNHubTags.ACTIVE_LOAN), abi.encode(true));
 
-        vm.mockCall(revokedNonce, abi.encodeWithSignature("isNonceUsable(address,uint256,uint256)"), abi.encode(true));
+        vm.mockCall(revokedNonce, abi.encodeWithSignature("isNonceRevoked(uint256,uint256)", proposal.nonceSpace, proposal.nonce), abi.encode(false));
     }
 
 
@@ -148,13 +148,13 @@ contract PWNElasticProposal_MakeProposal_Test is PWNElasticProposalTest {
 |*  # ENCODE DECODE PROPOSAL DATA                           *|
 |*----------------------------------------------------------*/
 
-contract PWNElasticProposal_EnDecodeProposalData_Test is PWNElasticProposalTest {
+contract PWNElasticProposal_EncodeDecodeProposalData_Test is PWNElasticProposalTest {
 
     function test_shouldEncodeDecodedProposalData() external {
         (
             PWNElasticProposal.Proposal memory _proposal,
             PWNElasticProposal.AcceptorValues memory _acceptorValues
-        ) = proposalContract.decodeProposalData(abi.encode(proposal, acceptorValues));
+        ) = proposalContract.decodeProposalData(proposalContract.encodeProposalData(proposal, acceptorValues));
 
         assertEq(uint8(proposal.collateralCategory), uint8(_proposal.collateralCategory));
         assertEq(proposal.collateralAddress, _proposal.collateralAddress);
