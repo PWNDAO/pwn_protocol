@@ -16,10 +16,8 @@ import {
     PWNDurationDefaultModule,
     PWNStableInterestModule,
     PWNClaimLiquidationModule,
-    PWNDutchAuctionProposal,
     PWNElasticChainlinkProposal,
     PWNElasticProposal,
-    PWNListProposal,
     PWNSimpleProposal,
     PWNUniswapV3LPIndividualProposal,
     PWNUniswapV3LPSetProposal,
@@ -106,15 +104,6 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.durationDefaultModule),
             address(__d.claimLiquidationModule)
         );
-        __d.listProposal = new PWNListProposal(
-            address(__d.hub),
-            address(__d.revokedNonce),
-            address(__d.config),
-            address(__d.utilizedCredit),
-            address(__d.stableInterestModule),
-            address(__d.durationDefaultModule),
-            address(__d.claimLiquidationModule)
-        );
         __d.elasticChainlinkProposal = new PWNElasticChainlinkProposal(
             address(__d.hub),
             address(__d.revokedNonce),
@@ -128,15 +117,6 @@ abstract contract DeploymentTest is Deployments, Test {
             __e.weth
         );
         __d.elasticProposal = new PWNElasticProposal(
-            address(__d.hub),
-            address(__d.revokedNonce),
-            address(__d.config),
-            address(__d.utilizedCredit),
-            address(__d.stableInterestModule),
-            address(__d.durationDefaultModule),
-            address(__d.claimLiquidationModule)
-        );
-        __d.dutchAuctionProposal = new PWNDutchAuctionProposal(
             address(__d.hub),
             address(__d.revokedNonce),
             address(__d.config),
@@ -175,36 +155,30 @@ abstract contract DeploymentTest is Deployments, Test {
         );
 
         // Set hub tags
-        address[] memory addrs = new address[](19);
+        address[] memory addrs = new address[](15);
         addrs[0] = address(__d.loan);
         addrs[1] = address(__d.loan);
 
         addrs[2] = address(__d.simpleProposal);
         addrs[3] = address(__d.simpleProposal);
 
-        addrs[4] = address(__d.listProposal);
-        addrs[5] = address(__d.listProposal);
+        addrs[4] = address(__d.elasticChainlinkProposal);
+        addrs[5] = address(__d.elasticChainlinkProposal);
 
-        addrs[6] = address(__d.elasticChainlinkProposal);
-        addrs[7] = address(__d.elasticChainlinkProposal);
+        addrs[6] = address(__d.elasticProposal);
+        addrs[7] = address(__d.elasticProposal);
 
-        addrs[8] = address(__d.elasticProposal);
-        addrs[9] = address(__d.elasticProposal);
+        addrs[8] = address(__d.uniswapV3LPIndividualProposal);
+        addrs[9] = address(__d.uniswapV3LPIndividualProposal);
 
-        addrs[10] = address(__d.dutchAuctionProposal);
-        addrs[11] = address(__d.dutchAuctionProposal);
+        addrs[10] = address(__d.uniswapV3LPSetProposal);
+        addrs[11] = address(__d.uniswapV3LPSetProposal);
 
-        addrs[12] = address(__d.uniswapV3LPIndividualProposal);
-        addrs[13] = address(__d.uniswapV3LPIndividualProposal);
+        addrs[12] = address(__d.stableInterestModule);
+        addrs[13] = address(__d.durationDefaultModule);
+        addrs[14] = address(__d.claimLiquidationModule);
 
-        addrs[14] = address(__d.uniswapV3LPSetProposal);
-        addrs[15] = address(__d.uniswapV3LPSetProposal);
-
-        addrs[16] = address(__d.stableInterestModule);
-        addrs[17] = address(__d.durationDefaultModule);
-        addrs[18] = address(__d.claimLiquidationModule);
-
-        bytes32[] memory tags = new bytes32[](19);
+        bytes32[] memory tags = new bytes32[](15);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
         tags[1] = PWNHubTags.NONCE_MANAGER;
 
@@ -223,15 +197,9 @@ abstract contract DeploymentTest is Deployments, Test {
         tags[10] = PWNHubTags.LOAN_PROPOSAL;
         tags[11] = PWNHubTags.NONCE_MANAGER;
 
-        tags[12] = PWNHubTags.LOAN_PROPOSAL;
-        tags[13] = PWNHubTags.NONCE_MANAGER;
-
-        tags[14] = PWNHubTags.LOAN_PROPOSAL;
-        tags[15] = PWNHubTags.NONCE_MANAGER;
-
-        tags[16] = PWNHubTags.MODULE;
-        tags[17] = PWNHubTags.MODULE;
-        tags[18] = PWNHubTags.MODULE;
+        tags[12] = PWNHubTags.MODULE;
+        tags[13] = PWNHubTags.MODULE;
+        tags[14] = PWNHubTags.MODULE;
 
         vm.prank(__e.protocolTimelock);
         __d.hub.setTags(addrs, tags, true);

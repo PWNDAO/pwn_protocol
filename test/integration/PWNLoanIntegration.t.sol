@@ -19,9 +19,7 @@ import {
     PWNHub,
     PWNHubTags,
     PWNLoan,
-    PWNDutchAuctionProposal,
     PWNElasticProposal,
-    PWNListProposal,
     PWNSimpleProposal,
     PWNLOAN,
     PWNRevokedNonce,
@@ -79,87 +77,6 @@ contract PWNLoanIntegrationTest is BaseIntegrationTest {
         uint256 loanId = __d.loan.create({
             proposalSpec: PWNLoan.ProposalSpec({
                 proposalContract: address(__d.simpleProposal),
-                proposalData: proposalData,
-                proposalInclusionProof: new bytes32[](0),
-                signature: signature
-            }),
-            lenderSpec: lenderSpec,
-            borrowerSpec: borrowerSpec,
-            extra: ""
-        });
-
-        // Assert final state
-        assertEq(__d.loanToken.ownerOf(loanId), lender);
-
-        assertEq(credit.balanceOf(lender), 0);
-        assertEq(credit.balanceOf(borrower), 100e18);
-        assertEq(credit.balanceOf(address(__d.loan)), 0);
-
-        assertEq(t1155.balanceOf(lender, 42), 0);
-        assertEq(t1155.balanceOf(borrower, 42), 0);
-        assertEq(t1155.balanceOf(address(__d.loan), 42), 10e18);
-
-        assertEq(__d.revokedNonce.isNonceRevoked(lender, proposal.nonceSpace, proposal.nonce), true);
-        assertEq(__d.loanToken.loanContract(loanId), address(__d.loan));
-    }
-
-    function test_shouldCreateLoan_fromListProposal() external {
-        bytes32 id1Hash = keccak256(abi.encodePacked(uint256(52)));
-        bytes32 id2Hash = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 collateralIdsWhitelistMerkleRoot = keccak256(abi.encodePacked(id1Hash, id2Hash));
-
-        PWNListProposal.Proposal memory proposal = PWNListProposal.Proposal({
-            collateralCategory: MultiToken.Category.ERC1155,
-            collateralAddress: address(t1155),
-            collateralIdsWhitelistMerkleRoot: collateralIdsWhitelistMerkleRoot,
-            collateralAmount: 10e18,
-            creditAddress: address(credit),
-            creditAmount: 100e18,
-            interestAPR: 0,
-            duration: 7 days,
-            minCreditAmount: 100e18,
-            availableCreditLimit: 0,
-            utilizedCreditId: 0,
-            nonceSpace: 0,
-            nonce: 0,
-            expiration: uint40(block.timestamp + 1 days),
-            proposer: lender,
-            proposerSpecHash: bytes32(0),
-            isProposerLender: true,
-            loanContract: address(__d.loan)
-        });
-
-        PWNListProposal.AcceptorValues memory acceptorValues = PWNListProposal.AcceptorValues({
-            collateralId: 42,
-            merkleInclusionProof: new bytes32[](1)
-        });
-        acceptorValues.merkleInclusionProof[0] = id1Hash;
-
-        // Mint initial state
-        t1155.mint(borrower, 42, 10e18);
-
-        // Approve collateral
-        vm.prank(borrower);
-        t1155.setApprovalForAll(address(__d.loan), true);
-
-        // Sign proposal
-        bytes memory signature = _sign(lenderPK, __d.listProposal.getProposalHash(proposal));
-
-        // Mint initial state
-        credit.mint(lender, 100e18);
-
-        // Approve loan asset
-        vm.prank(lender);
-        credit.approve(address(__d.loan), 100e18);
-
-        // Proposal data (need for vm.prank to work properly when creating a loan)
-        bytes memory proposalData = __d.listProposal.encodeProposalData(proposal, acceptorValues);
-
-        // Create LOAN
-        vm.prank(borrower);
-        uint256 loanId = __d.loan.create({
-            proposalSpec: PWNLoan.ProposalSpec({
-                proposalContract: address(__d.listProposal),
                 proposalData: proposalData,
                 proposalInclusionProof: new bytes32[](0),
                 signature: signature

@@ -12,9 +12,7 @@ import {
     PWNHub,
     PWNHubTags,
     PWNLoan,
-    PWNDutchAuctionProposal,
     PWNElasticProposal,
-    PWNListProposal,
     PWNSimpleProposal,
     PWNLOAN,
     PWNRevokedNonce

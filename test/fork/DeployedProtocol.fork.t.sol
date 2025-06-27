@@ -63,9 +63,6 @@ contract DeployedProtocolTest is DeploymentTest {
         // - simple loan simple proposal
         assertTrue(__d.hub.hasTag(address(__d.simpleProposal), PWNHubTags.NONCE_MANAGER));
         assertTrue(__d.hub.hasTag(address(__d.simpleProposal), PWNHubTags.LOAN_PROPOSAL));
-        // - simple loan list proposal
-        assertTrue(__d.hub.hasTag(address(__d.listProposal), PWNHubTags.NONCE_MANAGER));
-        assertTrue(__d.hub.hasTag(address(__d.listProposal), PWNHubTags.LOAN_PROPOSAL));
         // - simple loan elastic chainlink proposal
         if (address(__d.elasticChainlinkProposal) != address(0)) {
             assertTrue(__d.hub.hasTag(address(__d.elasticChainlinkProposal), PWNHubTags.NONCE_MANAGER));
@@ -74,9 +71,6 @@ contract DeployedProtocolTest is DeploymentTest {
         // - simple loan elastic proposal
         assertTrue(__d.hub.hasTag(address(__d.elasticProposal), PWNHubTags.NONCE_MANAGER));
         assertTrue(__d.hub.hasTag(address(__d.elasticProposal), PWNHubTags.LOAN_PROPOSAL));
-        // - simple loan dutch auction proposal
-        assertTrue(__d.hub.hasTag(address(__d.dutchAuctionProposal), PWNHubTags.NONCE_MANAGER));
-        assertTrue(__d.hub.hasTag(address(__d.dutchAuctionProposal), PWNHubTags.LOAN_PROPOSAL));
     }
 
 
