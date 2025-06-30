@@ -19,7 +19,6 @@ import {
     PWNHub,
     PWNHubTags,
     PWNLoan,
-    PWNElasticProposal,
     PWNSimpleProposal,
     PWNLOAN,
     PWNRevokedNonce,
@@ -98,82 +97,6 @@ contract PWNLoanIntegrationTest is BaseIntegrationTest {
         assertEq(t1155.balanceOf(address(__d.loan), 42), 10e18);
 
         assertEq(__d.revokedNonce.isNonceRevoked(lender, proposal.nonceSpace, proposal.nonce), true);
-        assertEq(__d.loanToken.loanContract(loanId), address(__d.loan));
-    }
-
-    function test_shouldCreateLoan_fromElasticProposal() external {
-        PWNElasticProposal.Proposal memory proposal = PWNElasticProposal.Proposal({
-            collateralCategory: MultiToken.Category.ERC1155,
-            collateralAddress: address(t1155),
-            collateralId: 42,
-            creditAddress: address(credit),
-            creditPerCollateralUnit: 10e18 * 10 ** __d.elasticProposal.CREDIT_PER_COLLATERAL_UNIT_DECIMALS(),
-            interestAPR: 0,
-            duration: 7 days,
-            minCreditAmount: 10e18,
-            availableCreditLimit: 100e18,
-            utilizedCreditId: 0,
-            nonceSpace: 0,
-            nonce: 0,
-            expiration: uint40(block.timestamp + 1 days),
-            proposer: lender,
-            proposerSpecHash: bytes32(0),
-            isProposerLender: true,
-            loanContract: address(__d.loan)
-        });
-
-        PWNElasticProposal.AcceptorValues memory acceptorValues = PWNElasticProposal.AcceptorValues({
-            creditAmount: 70e18
-        });
-
-        // Mint initial state
-        t1155.mint(borrower, 42, 10);
-
-        // Approve collateral
-        vm.prank(borrower);
-        t1155.setApprovalForAll(address(__d.loan), true);
-
-        // Sign proposal
-        bytes32 proposalHash = __d.elasticProposal.getProposalHash(proposal);
-        bytes memory signature = _sign(lenderPK, proposalHash);
-
-        // Mint initial state
-        credit.mint(lender, 100e18);
-
-        // Approve loan asset
-        vm.prank(lender);
-        credit.approve(address(__d.loan), 100e18);
-
-        // Proposal data (need for vm.prank to work properly when creating a loan)
-        bytes memory proposalData = __d.elasticProposal.encodeProposalData(proposal, acceptorValues);
-
-        // Create LOAN
-        vm.prank(borrower);
-        uint256 loanId = __d.loan.create({
-            proposalSpec: PWNLoan.ProposalSpec({
-                proposalContract: address(__d.elasticProposal),
-                proposalData: proposalData,
-                proposalInclusionProof: new bytes32[](0),
-                signature: signature
-            }),
-            lenderSpec: lenderSpec,
-            borrowerSpec: borrowerSpec,
-            extra: ""
-        });
-
-        // Assert final state
-        assertEq(__d.loanToken.ownerOf(loanId), lender);
-
-        assertEq(credit.balanceOf(lender), 30e18);
-        assertEq(credit.balanceOf(borrower), 70e18);
-        assertEq(credit.balanceOf(address(__d.loan)), 0);
-
-        assertEq(t1155.balanceOf(lender, 42), 0);
-        assertEq(t1155.balanceOf(borrower, 42), 3);
-        assertEq(t1155.balanceOf(address(__d.loan), 42), 7);
-
-        assertEq(__d.revokedNonce.isNonceRevoked(lender, proposal.nonceSpace, proposal.nonce), false);
-        assertEq(__d.utilizedCredit.utilizedCredit(lender, proposal.utilizedCreditId), 70e18);
         assertEq(__d.loanToken.loanContract(loanId), address(__d.loan));
     }
 

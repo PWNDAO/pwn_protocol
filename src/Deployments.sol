@@ -19,7 +19,6 @@ import { PWNStableInterestModule } from "pwn/periphery/loan/module/interest/PWNS
 import { PWNClaimLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
 import { PWNSimpleProposal } from "pwn/periphery/proposal/PWNSimpleProposal.sol";
 import { PWNElasticChainlinkProposal } from "pwn/periphery/proposal/PWNElasticChainlinkProposal.sol";
-import { PWNElasticProposal } from "pwn/periphery/proposal/PWNElasticProposal.sol";
 import { PWNUniswapV3LPIndividualProposal } from "pwn/periphery/proposal/PWNUniswapV3LPIndividualProposal.sol";
 import { PWNUniswapV3LPSetProposal } from "pwn/periphery/proposal/PWNUniswapV3LPSetProposal.sol";
 import { PWNRevokedNonce } from "pwn/periphery/proposal/auxiliary/PWNRevokedNonce.sol";
@@ -53,7 +52,6 @@ abstract contract Deployments is CommonBase {
         PWNConfig configSingleton;
         PWNDurationDefaultModule durationDefaultModule;
         PWNElasticChainlinkProposal elasticChainlinkProposal;
-        PWNElasticProposal elasticProposal;
         PWNHub hub;
         PWNLoan loan;
         PWNLOAN loanToken;

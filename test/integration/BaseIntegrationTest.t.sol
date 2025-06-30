@@ -13,7 +13,6 @@ import {
     PWNHub,
     PWNHubTags,
     PWNLoan,
-    PWNElasticProposal,
     PWNSimpleProposal,
     PWNLOAN,
     PWNRevokedNonce,

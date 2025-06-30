@@ -57,20 +57,17 @@ contract DeployedProtocolTest is DeploymentTest {
         assertEq(address(__d.utilizedCredit.hub()), address(__d.hub));
 
         // HUB TAGS
-        // - simple loan
+        // - loan
         assertTrue(__d.hub.hasTag(address(__d.loan), PWNHubTags.NONCE_MANAGER));
         assertTrue(__d.hub.hasTag(address(__d.loan), PWNHubTags.ACTIVE_LOAN));
-        // - simple loan simple proposal
+        // - simple proposal
         assertTrue(__d.hub.hasTag(address(__d.simpleProposal), PWNHubTags.NONCE_MANAGER));
         assertTrue(__d.hub.hasTag(address(__d.simpleProposal), PWNHubTags.LOAN_PROPOSAL));
-        // - simple loan elastic chainlink proposal
+        // - elastic chainlink proposal
         if (address(__d.elasticChainlinkProposal) != address(0)) {
             assertTrue(__d.hub.hasTag(address(__d.elasticChainlinkProposal), PWNHubTags.NONCE_MANAGER));
             assertTrue(__d.hub.hasTag(address(__d.elasticChainlinkProposal), PWNHubTags.LOAN_PROPOSAL));
         }
-        // - simple loan elastic proposal
-        assertTrue(__d.hub.hasTag(address(__d.elasticProposal), PWNHubTags.NONCE_MANAGER));
-        assertTrue(__d.hub.hasTag(address(__d.elasticProposal), PWNHubTags.LOAN_PROPOSAL));
     }
 
 
