@@ -1,0 +1,239 @@
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity 0.8.16;
+
+import { Math } from "openzeppelin/utils/math/Math.sol";
+
+import { MultiToken } from "MultiToken/MultiToken.sol";
+
+import { PWNHub } from "pwn/core/hub/PWNHub.sol";
+import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
+import { IPWNDefaultModule, DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNDefaultModule.sol";
+import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
+import { Chainlink, IChainlinkAggregatorLike, IChainlinkFeedRegistryLike } from "pwn/periphery/lib/Chainlink.sol";
+
+/**
+ * @title PWNChainlinkValueDurationDefaultModule
+ * @notice Default module for PWN loans that uses Chainlink price feeds and a duration condition to determine loan default based on collateral value or time.
+ * @dev This module checks if a loan is defaulted by either:
+ * 1. The duration (from loan creation) has elapsed, or
+ * 2. The value of the collateral (converted to the credit asset denomination) falls below the required liquidation loan-to-value (LLTV) ratio, using Chainlink feeds.
+ */
+contract PWNChainlinkValueDurationDefaultModule is IPWNDefaultModule {
+    using Math for uint256;
+    using Chainlink for Chainlink.Config;
+
+    /** @notice The minimum allowed duration (in seconds) for the default period.*/
+    uint256 public constant MIN_DURATION = 10 minutes;
+    /** @notice Maximum number of intermediary denominations allowed for Chainlink feed conversion.*/
+    uint256 public constant MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS = 4;
+    /** @notice Number of decimals for the LLTV ratio (e.g., 6231 = 0.6231 = 62.31%).*/
+    uint256 public constant LLTV_DECIMALS = 4;
+
+    /** @notice Reference to the PWN Hub contract.*/
+    PWNHub public immutable hub;
+
+    /** @dev Chainlink configuration struct for price feed operations.*/
+    Chainlink.Config internal _chainlink;
+
+    /**
+     * @notice Struct containing proposer data for default logic.
+     * @param lltv Liquidation loan-to-value ratio (scaled by LLTV_DECIMALS).
+     * @param feedIntermediaryDenominations Array of intermediary denominations for Chainlink feed conversion.
+     * @param feedInvertFlags Array of flags indicating if the feed should be inverted at each step.
+     * @param duration The duration (in seconds) after which the loan is considered defaulted regardless of collateral value.
+     */
+    struct ProposerData {
+        uint256 lltv;
+        address[] feedIntermediaryDenominations;
+        bool[] feedInvertFlags;
+        uint256 duration;
+    }
+
+    /**
+     * @notice Struct containing data required for default logic based on Chainlink value and duration.
+     * @param lltv Liquidation loan-to-value ratio (scaled by LLTV_DECIMALS).
+     * @param feedData Custom encoded data required to query the Chainlink price feed. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
+     * @param defaultTimestamp The timestamp after which the loan is considered defaulted regardless of collateral value.
+     */
+    struct DefaultData {
+        uint256 lltv;
+        bytes feedData;
+        uint256 defaultTimestamp;
+    }
+
+    /** @notice Mapping of loan contract and loan id to proposer data for default logic.*/
+    mapping (address => mapping(uint256 => DefaultData)) internal _defaultData;
+
+    /** @notice Thrown when the provided hub address is zero.*/
+    error HubZeroAddress();
+    /** @notice Thrown when the provided Chainlink feed registry address is zero.*/
+    error ChainlinkFeedRegistryZeroAddress();
+    /** @notice Thrown when the provided WETH address is zero.*/
+    error WethZeroAddress();
+    /** @notice Thrown when the caller does not have the ACTIVE_LOAN tag in the hub.*/
+    error CallerNotActiveLoan();
+    /** @notice Thrown when a loan is already initialized in this module.*/
+    error LoanAlreadyInitialized();
+    /** @notice Thrown when the collateral category is not ERC20.*/
+    error UnsupportedCollateral();
+    /** @notice Thrown when the provided LLTV is invalid (zero or above 1.0).*/
+    error InvalidLLTV();
+    /** @notice Thrown when the duration is less than the minimum allowed duration.*/
+    error DurationTooShort();
+
+
+    constructor(
+        PWNHub _hub,
+        IChainlinkAggregatorLike chainlinkL2SequencerUptimeFeed,
+        IChainlinkFeedRegistryLike chainlinkFeedRegistry,
+        address weth
+    ) {
+        if (address(_hub) == address(0)) revert HubZeroAddress();
+        if (address(chainlinkFeedRegistry) == address(0)) revert ChainlinkFeedRegistryZeroAddress();
+        if (address(weth) == address(0)) revert WethZeroAddress();
+
+        hub = _hub;
+        _chainlink.l2SequencerUptimeFeed = chainlinkL2SequencerUptimeFeed;
+        _chainlink.feedRegistry = chainlinkFeedRegistry;
+        _chainlink.maxIntermediaryDenominations = MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS;
+        _chainlink.weth = weth;
+    }
+
+    /**
+     * @notice Initializes the default module for a loan on creation.
+     * @dev Sets the default timestamp and price feed configuration for the loan. The loan will be considered defaulted if the duration elapses or the collateral value falls below the LLTV threshold.
+     * @param loanId The id of the loan being initialized.
+     * @param proposerData ABI-encoded ProposerData struct containing LLTV, feed configuration, and duration.
+     * @return The expected module initialization hook return value.
+     */
+    function onLoanCreated(uint256 loanId, bytes calldata proposerData) external returns (bytes32) {
+        if (!hub.hasTag(msg.sender, PWNHubTags.ACTIVE_LOAN)) revert CallerNotActiveLoan();
+        if (_defaultData[msg.sender][loanId].lltv != 0) revert LoanAlreadyInitialized();
+
+        PWNLoan.LOAN memory loan = PWNLoan(msg.sender).getLOAN(loanId);
+        if (loan.collateral.category != MultiToken.Category.ERC20) revert UnsupportedCollateral();
+
+        ProposerData memory proposer = abi.decode(proposerData, (ProposerData));
+        if (proposer.lltv > 10 ** LLTV_DECIMALS || proposer.lltv == 0) revert InvalidLLTV();
+
+        if (proposer.duration < MIN_DURATION) revert DurationTooShort();
+
+        _defaultData[msg.sender][loanId] = DefaultData({
+            lltv: proposer.lltv,
+            feedData: _encodePriceFeedData(proposer.feedInvertFlags, proposer.feedIntermediaryDenominations),
+            defaultTimestamp: block.timestamp + proposer.duration
+        });
+
+        return DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE;
+    }
+
+    /**
+     * @notice Checks if a loan is defaulted based on the value of its collateral, the LLTV ratio, or the duration condition.
+     * @dev Uses Chainlink feeds to convert collateral value to the credit asset denomination and compares to debt. Returns true if the duration has elapsed or the value condition is met.
+     * @param loanContract The address of the loan contract.
+     * @param loanId The id of the loan to check.
+     * @return True if the loan is defaulted, false otherwise.
+     */
+    function isDefaulted(address loanContract, uint256 loanId) public view returns (bool) {
+        DefaultData memory data = _defaultData[loanContract][loanId];
+
+        if (data.defaultTimestamp <= block.timestamp) {
+            return true;
+        }
+
+        PWNLoan.LOAN memory loan = PWNLoan(loanContract).getLOAN(loanId);
+
+        (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations)
+            = _decodePriceFeedData(data.feedData);
+
+        uint256 value = _chainlink.convertDenomination({
+            amount: loan.collateral.amount,
+            oldDenomination: loan.collateral.assetAddress,
+            newDenomination: loan.creditAddress,
+            feedIntermediaryDenominations: feedIntermediaryDenominations,
+            feedInvertFlags: feedInvertFlags
+        });
+
+        return PWNLoan(loanContract).getLOANDebt(loanId) >= value.mulDiv(data.lltv, 10 ** LLTV_DECIMALS);
+    }
+
+    /**
+     * @notice Get the default data for a given loan.
+     * @param loanContract Address of the loan contract.
+     * @param loanId Loan identifier.
+     * @return lltv Liquidation loan-to-value ratio.
+     * @return feedIntermediaryDenominations Intermediary denominations used in the price feed.
+     * @return feedInvertFlags Flags indicating whether to invert the price feed for each denomination.
+     * @return defaultTimestamp The timestamp after which the loan is considered defaulted regardless of collateral value.
+     */
+    function defaultData(
+        address loanContract,
+        uint256 loanId
+    ) external view returns (
+        uint256 lltv,
+        address[] memory feedIntermediaryDenominations,
+        bool[] memory feedInvertFlags,
+        uint256 defaultTimestamp
+    ) {
+        DefaultData memory data = _defaultData[loanContract][loanId];
+        lltv = data.lltv;
+        (feedInvertFlags, feedIntermediaryDenominations) = _decodePriceFeedData(data.feedData);
+        defaultTimestamp = data.defaultTimestamp;
+    }
+
+
+    /**
+     * @notice Encodes price feed intermediary denominations and invert flags into a bytes array.
+     * @dev Reverts if input array lengths are invalid or if the number of intermediary denominations exceeds the maximum allowed.
+     * @param feedInvertFlags Array of boolean flags indicating if the feed should be inverted at each step. Must be one longer than denominations.
+     * @param feedIntermediaryDenominations Array of intermediary denomination addresses for Chainlink feed conversion.
+     * @return data Custom encoded data containing Chainlink price feed configuration. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
+     */
+    function _encodePriceFeedData(
+        bool[] memory feedInvertFlags,
+        address[] memory feedIntermediaryDenominations
+    ) internal pure returns (bytes memory data) {
+        if (feedIntermediaryDenominations.length + 1 != feedInvertFlags.length) {
+            revert Chainlink.ChainlinkInvalidInputLenghts();
+        }
+        uint256 intermediaryDenominationsLength = feedIntermediaryDenominations.length;
+        if (intermediaryDenominationsLength > MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS) {
+            revert Chainlink.IntermediaryDenominationsOutOfBounds(
+                intermediaryDenominationsLength,
+                MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS
+            );
+        }
+
+        for (uint256 i; i < intermediaryDenominationsLength; ++i) {
+            data = abi.encodePacked(data, feedInvertFlags[i], feedIntermediaryDenominations[i]);
+        }
+        data = abi.encodePacked(data, feedInvertFlags[intermediaryDenominationsLength]);
+    }
+
+    /**
+     * @notice Decodes a bytes array into price feed intermediary denominations and invert flags.
+     * @dev The input data must be encoded as per _encodePriceFeedData.
+     * @param data Custom encoded data containing Chainlink price feed configuration. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
+     * @return feedInvertFlags Array of boolean flags indicating if the feed should be inverted at each step.
+     * @return feedIntermediaryDenominations Array of intermediary denomination addresses for Chainlink feed conversion.
+     */
+    function _decodePriceFeedData(
+        bytes memory data
+    ) internal pure returns (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations) {
+        uint256 intermediaryDenominationsLength = (data.length - 1) / 21;
+
+        feedInvertFlags = new bool[](intermediaryDenominationsLength + 1);
+        feedIntermediaryDenominations = new address[](intermediaryDenominationsLength);
+
+        for (uint256 i; i < intermediaryDenominationsLength; ++i) {
+            feedInvertFlags[i] = data[i * 21] == bytes1(0x01);
+            address addr;
+            assembly {
+                addr := shr(96, mload(add(add(data, 0x20), add(mul(i, 21), 1))))
+            }
+            feedIntermediaryDenominations[i] = addr;
+        }
+        feedInvertFlags[intermediaryDenominationsLength] = data[data.length - 1] == bytes1(0x01);
+    }
+
+}
