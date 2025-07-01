@@ -82,7 +82,7 @@ abstract contract PWNChainlinkValueDefaultModuleTest is Test {
         vm.mockCall(_asset, abi.encodeWithSignature("decimals()"), abi.encode(_decimals));
     }
 
-    function _mockCollateralPrice(uint256 price) internal {
+    function _mockPrice(uint256 price) internal {
         vm.mockCall(
             chainlinkFeedRegistry,
             abi.encodeWithSelector(IChainlinkFeedRegistryLike.getFeed.selector),
@@ -198,7 +198,7 @@ contract PWNChainlinkValueDefaultModule_IsDefaulted_Test is PWNChainlinkValueDef
 
 
     function test_shouldFetchLoanData() external {
-        _mockCollateralPrice(2 ether);
+        _mockPrice(2 ether);
 
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOAN.selector, loanId));
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOANDebt.selector, loanId));
@@ -206,13 +206,13 @@ contract PWNChainlinkValueDefaultModule_IsDefaulted_Test is PWNChainlinkValueDef
         defaultModule.isDefaulted(loanContract, loanId);
     }
 
-    function testFuzz_shouldReturnFalse_whenCollateralValueAboveLLTV(uint256 price) external {
-        _mockCollateralPrice(bound(price, 1.25 ether + 1, 10 ether));
+    function testFuzz_shouldReturnFalse_whenCreditValueBelowLLTV(uint256 price) external {
+        _mockPrice(bound(price, 0.1 ether, 0.8 ether - 1));
         assertFalse(defaultModule.isDefaulted(loanContract, loanId));
     }
 
-    function testFuzz_shouldReturnTrue_whenCollateralValueBelowLLTV(uint256 price) external {
-        _mockCollateralPrice(bound(price, 0.1 ether, 1.25 ether));
+    function testFuzz_shouldReturnTrue_whenCreditValueAboveLLTV(uint256 price) external {
+        _mockPrice(bound(price, 0.8 ether, 10 ether));
         assertTrue(defaultModule.isDefaulted(loanContract, loanId));
     }
 

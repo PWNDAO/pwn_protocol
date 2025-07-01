@@ -129,14 +129,14 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
             = _decodePriceFeedData(data.feedData);
 
         uint256 value = _chainlink.convertDenomination({
-            amount: loan.collateral.amount,
-            oldDenomination: loan.collateral.assetAddress,
-            newDenomination: loan.creditAddress,
+            amount: PWNLoan(loanContract).getLOANDebt(loanId),
+            oldDenomination: loan.creditAddress,
+            newDenomination: loan.collateral.assetAddress,
             feedIntermediaryDenominations: feedIntermediaryDenominations,
             feedInvertFlags: feedInvertFlags
         });
 
-        return PWNLoan(loanContract).getLOANDebt(loanId) >= value.mulDiv(data.lltv, 10 ** LLTV_DECIMALS);
+        return loan.collateral.amount.mulDiv(data.lltv, 10 ** LLTV_DECIMALS) <= value;
     }
 
     /**
