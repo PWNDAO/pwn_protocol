@@ -24,7 +24,11 @@ import {
     PWNRevokedNonce,
     PWNUtilizedCredit,
     MultiTokenCategoryRegistry,
-    IChainlinkFeedRegistryLike
+    IChainlinkAggregatorLike,
+    IChainlinkFeedRegistryLike,
+    PWNChainlinkValueDefaultModule,
+    PWNStablePeriodInterestModule,
+    PWNOpenLiquidationModule
 } from "pwn/Deployments.sol";
 
 
@@ -83,8 +87,16 @@ abstract contract DeploymentTest is Deployments, Test {
         __d.utilizedCredit = new PWNUtilizedCredit(address(__d.hub), PWNHubTags.LOAN_PROPOSAL);
 
         __d.stableInterestModule = new PWNStableInterestModule(__d.hub);
+        __d.stablePeriodInterestModule = new PWNStablePeriodInterestModule(__d.hub);
         __d.durationDefaultModule = new PWNDurationDefaultModule(__d.hub);
+        __d.chainlinkValueDefaultModule = new PWNChainlinkValueDefaultModule(
+            __d.hub,
+            IChainlinkAggregatorLike(__e.chainlinkL2SequencerUptimeFeed),
+            __d.chainlinkFeedRegistry,
+            __e.weth
+        );
         __d.claimLiquidationModule = new PWNClaimLiquidationModule();
+        __d.openLiquidationModule = new PWNOpenLiquidationModule();
 
         __d.loanToken = new PWNLOAN(address(__d.hub));
         __d.loan = new PWNLoan(
@@ -108,9 +120,9 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.revokedNonce),
             address(__d.config),
             address(__d.utilizedCredit),
-            address(__d.stableInterestModule),
-            address(__d.durationDefaultModule),
-            address(__d.claimLiquidationModule),
+            address(__d.stablePeriodInterestModule),
+            address(__d.chainlinkValueDefaultModule),
+            address(__d.openLiquidationModule),
             address(__d.chainlinkFeedRegistry),
             __e.chainlinkL2SequencerUptimeFeed,
             __e.weth
@@ -145,7 +157,7 @@ abstract contract DeploymentTest is Deployments, Test {
         );
 
         // Set hub tags
-        address[] memory addrs = new address[](15);
+        address[] memory addrs = new address[](16);
         addrs[0] = address(__d.loan);
         addrs[1] = address(__d.loan);
 
@@ -162,8 +174,11 @@ abstract contract DeploymentTest is Deployments, Test {
         addrs[9] = address(__d.uniswapV3LPSetProposal);
 
         addrs[10] = address(__d.stableInterestModule);
-        addrs[11] = address(__d.durationDefaultModule);
-        addrs[12] = address(__d.claimLiquidationModule);
+        addrs[11] = address(__d.stablePeriodInterestModule);
+        addrs[12] = address(__d.durationDefaultModule);
+        addrs[13] = address(__d.chainlinkValueDefaultModule);
+        addrs[14] = address(__d.claimLiquidationModule);
+        addrs[15] = address(__d.openLiquidationModule);
 
         bytes32[] memory tags = new bytes32[](15);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
@@ -184,6 +199,9 @@ abstract contract DeploymentTest is Deployments, Test {
         tags[10] = PWNHubTags.MODULE;
         tags[11] = PWNHubTags.MODULE;
         tags[12] = PWNHubTags.MODULE;
+        tags[13] = PWNHubTags.MODULE;
+        tags[14] = PWNHubTags.MODULE;
+        tags[15] = PWNHubTags.MODULE;
 
         vm.prank(__e.protocolTimelock);
         __d.hub.setTags(addrs, tags, true);

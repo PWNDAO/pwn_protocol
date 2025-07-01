@@ -63,10 +63,10 @@ contract DeployedProtocolTest is DeploymentTest {
         // - simple proposal
         assertTrue(__d.hub.hasTag(address(__d.simpleProposal), PWNHubTags.NONCE_MANAGER));
         assertTrue(__d.hub.hasTag(address(__d.simpleProposal), PWNHubTags.LOAN_PROPOSAL));
-        // - elastic chainlink proposal
-        if (address(__d.elasticChainlinkProposal) != address(0)) {
-            assertTrue(__d.hub.hasTag(address(__d.elasticChainlinkProposal), PWNHubTags.NONCE_MANAGER));
-            assertTrue(__d.hub.hasTag(address(__d.elasticChainlinkProposal), PWNHubTags.LOAN_PROPOSAL));
+        // - stable interest proposal
+        if (address(__d.stableInterestProposal) != address(0)) {
+            assertTrue(__d.hub.hasTag(address(__d.stableInterestProposal), PWNHubTags.NONCE_MANAGER));
+            assertTrue(__d.hub.hasTag(address(__d.stableInterestProposal), PWNHubTags.LOAN_PROPOSAL));
         }
     }
 
