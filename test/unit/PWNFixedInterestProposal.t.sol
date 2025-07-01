@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import {
-    PWNFixedTermsProposal,
+    PWNFixedInterestProposal,
     PWNBaseProposal,
     Terms,
     IChainlinkAggregatorLike,
@@ -13,13 +13,13 @@ import {
     Chainlink,
     MultiToken,
     PWNChainlinkValueDefaultModule
-} from "pwn/periphery/proposal/PWNFixedTermsProposal.sol";
+} from "pwn/periphery/proposal/PWNFixedInterestProposal.sol";
 
-import { PWNFixedTermsProposalHarness } from "test/harness/PWNFixedTermsProposalHarness.sol";
+import { PWNFixedInterestProposalHarness } from "test/harness/PWNFixedInterestProposalHarness.sol";
 import { ChainlinkDenominations } from "test/helper/ChainlinkDenominations.sol";
 
 
-abstract contract PWNFixedTermsProposalTest is Test {
+abstract contract PWNFixedInterestProposalTest is Test {
 
     address hub = makeAddr("hub");
     address revokedNonce = makeAddr("revokedNonce");
@@ -38,16 +38,16 @@ abstract contract PWNFixedTermsProposalTest is Test {
     address weth = makeAddr("weth");
     address l2SequencerUptimeFeed = makeAddr("l2SequencerUptimeFeed");
 
-    PWNFixedTermsProposalHarness proposalContract;
-    PWNFixedTermsProposal.Proposal proposal;
-    PWNFixedTermsProposal.AcceptorValues acceptorValues;
+    PWNFixedInterestProposalHarness proposalContract;
+    PWNFixedInterestProposal.Proposal proposal;
+    PWNFixedInterestProposal.AcceptorValues acceptorValues;
 
-    event ProposalMade(bytes32 indexed proposalHash, address indexed proposer, PWNFixedTermsProposal.Proposal proposal);
+    event ProposalMade(bytes32 indexed proposalHash, address indexed proposer, PWNFixedInterestProposal.Proposal proposal);
 
     function setUp() virtual public {
-        proposalContract = new PWNFixedTermsProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, address(0), weth);
+        proposalContract = new PWNFixedInterestProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, address(0), weth);
 
-        proposal = PWNFixedTermsProposal.Proposal({
+        proposal = PWNFixedInterestProposal.Proposal({
             collateralAddress: token,
             creditAddress: token,
             feedIntermediaryDenominations: new address[](0),
@@ -55,7 +55,7 @@ abstract contract PWNFixedTermsProposalTest is Test {
             maxAcceptableLTV: 9000, // 90%
             interestAPR: 0,
             fixationPeriod: 365 days,
-            lltv: 9500, // 95%
+            LLTV: 9500, // 95%
             minCreditAmount: 1 ether,
             availableCreditLimit: 0,
             utilizedCreditId: 0,
@@ -69,7 +69,7 @@ abstract contract PWNFixedTermsProposalTest is Test {
         });
         proposal.feedInvertFlags[0] = false;
 
-        acceptorValues = PWNFixedTermsProposal.AcceptorValues({
+        acceptorValues = PWNFixedInterestProposal.AcceptorValues({
             creditAmount: 10 ether,
             collateralAmount: 20 ether
         });
@@ -86,18 +86,18 @@ abstract contract PWNFixedTermsProposalTest is Test {
     }
 
 
-    function _proposalHash(PWNFixedTermsProposal.Proposal memory _proposal) internal view returns (bytes32) {
+    function _proposalHash(PWNFixedInterestProposal.Proposal memory _proposal) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(
             hex"1901",
             keccak256(abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256("PWNFixedTermsProposal"),
+                keccak256("PWNFixedInterestProposal"),
                 keccak256("1.5"),
                 block.chainid,
                 address(proposalContract)
             )),
             keccak256(abi.encodePacked(
-                keccak256("Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLTV,uint256 interestAPR,uint256 fixationPeriod,uint256 lltv,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"),
+                keccak256("Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLTV,uint256 interestAPR,uint256 fixationPeriod,uint256 LLTV,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"),
                 proposalContract.exposed_erc712EncodeProposal(_proposal)
             ))
         ));
@@ -159,7 +159,7 @@ abstract contract PWNFixedTermsProposalTest is Test {
 |*  # GET PROPOSAL HASH                                     *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedTermsProposal_GetProposalHash_Test is PWNFixedTermsProposalTest {
+contract PWNFixedInterestProposal_GetProposalHash_Test is PWNFixedInterestProposalTest {
 
     function test_shouldReturnProposalHash() external {
         assertEq(_proposalHash(proposal), proposalContract.getProposalHash(proposal));
@@ -172,7 +172,7 @@ contract PWNFixedTermsProposal_GetProposalHash_Test is PWNFixedTermsProposalTest
 |*  # MAKE PROPOSAL                                         *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedTermsProposal_MakeProposal_Test is PWNFixedTermsProposalTest {
+contract PWNFixedInterestProposal_MakeProposal_Test is PWNFixedInterestProposalTest {
 
     function testFuzz_shouldFail_whenCallerIsNotProposer(address caller) external {
         vm.assume(caller != proposal.proposer);
@@ -209,12 +209,12 @@ contract PWNFixedTermsProposal_MakeProposal_Test is PWNFixedTermsProposalTest {
 |*  # ENCODE DECODE PROPOSAL DATA                           *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedTermsProposal_EncodeDecodeProposalData_Test is PWNFixedTermsProposalTest {
+contract PWNFixedInterestProposal_EncodeDecodeProposalData_Test is PWNFixedInterestProposalTest {
 
     function test_shouldEncodeDecodedProposalData() external {
         (
-            PWNFixedTermsProposal.Proposal memory _proposal,
-            PWNFixedTermsProposal.AcceptorValues memory _acceptorValues
+            PWNFixedInterestProposal.Proposal memory _proposal,
+            PWNFixedInterestProposal.AcceptorValues memory _acceptorValues
         ) = proposalContract.decodeProposalData(proposalContract.encodeProposalData(proposal, acceptorValues));
 
         assertEq(proposal.collateralAddress, _proposal.collateralAddress);
@@ -225,7 +225,7 @@ contract PWNFixedTermsProposal_EncodeDecodeProposalData_Test is PWNFixedTermsPro
         assertEq(proposal.maxAcceptableLTV, _proposal.maxAcceptableLTV);
         assertEq(proposal.interestAPR, _proposal.interestAPR);
         assertEq(proposal.fixationPeriod, _proposal.fixationPeriod);
-        assertEq(proposal.lltv, _proposal.lltv);
+        assertEq(proposal.LLTV, _proposal.LLTV);
         assertEq(proposal.minCreditAmount, _proposal.minCreditAmount);
         assertEq(proposal.availableCreditLimit, _proposal.availableCreditLimit);
         assertEq(proposal.utilizedCreditId, _proposal.utilizedCreditId);
@@ -248,7 +248,7 @@ contract PWNFixedTermsProposal_EncodeDecodeProposalData_Test is PWNFixedTermsPro
 |*  # GET LOAN TO VALUE                                     *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedTermsProposal_GetLoanToValue_Test is PWNFixedTermsProposalTest {
+contract PWNFixedInterestProposal_GetLoanToValue_Test is PWNFixedInterestProposalTest {
 
     address collAddr = makeAddr("collAddr");
     address credAddr = makeAddr("credAddr");
@@ -267,14 +267,14 @@ contract PWNFixedTermsProposal_GetLoanToValue_Test is PWNFixedTermsProposalTest 
 
 
     function test_shouldFail_whenCollateralAmountIsZero() external {
-        vm.expectRevert(abi.encodeWithSelector(PWNFixedTermsProposal.CollateralAmountZero.selector));
+        vm.expectRevert(abi.encodeWithSelector(PWNFixedInterestProposal.CollateralAmountZero.selector));
         proposalContract.getLoanToValue(credAddr, credAmount, collAddr, 0, feedIntermediaryDenominations, feedInvertFlags);
     }
 
     function test_shouldFetchSequencerUptimeFeed_whenFeedSet() external {
         vm.warp(1e9);
 
-        proposalContract = new PWNFixedTermsProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
+        proposalContract = new PWNFixedInterestProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
         _mockSequencerUptimeFeed(true, block.timestamp - L2_GRACE_PERIOD - 1);
         _mockLastRoundData(feed, 1e18, block.timestamp);
 
@@ -289,7 +289,7 @@ contract PWNFixedTermsProposal_GetLoanToValue_Test is PWNFixedTermsProposalTest 
     function test_shouldFail_whenL2SequencerDown_whenFeedSet() external {
         vm.warp(1e9);
 
-        proposalContract = new PWNFixedTermsProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
+        proposalContract = new PWNFixedInterestProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
         _mockSequencerUptimeFeed(false, block.timestamp - L2_GRACE_PERIOD - 1);
 
         vm.expectRevert(abi.encodeWithSelector(Chainlink.L2SequencerDown.selector));
@@ -300,7 +300,7 @@ contract PWNFixedTermsProposal_GetLoanToValue_Test is PWNFixedTermsProposalTest 
         vm.warp(1e9);
         startedAt = bound(startedAt, block.timestamp - L2_GRACE_PERIOD, block.timestamp);
 
-        proposalContract = new PWNFixedTermsProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
+        proposalContract = new PWNFixedInterestProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
         _mockSequencerUptimeFeed(true, startedAt);
 
         vm.expectRevert(
@@ -411,16 +411,16 @@ contract PWNFixedTermsProposal_GetLoanToValue_Test is PWNFixedTermsProposalTest 
 |*  # ACCEPT PROPOSAL                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedTermsProposal_AcceptProposal_Test is PWNFixedTermsProposalTest {
+contract PWNFixedInterestProposal_AcceptProposal_Test is PWNFixedInterestProposalTest {
 
-    function testFuzz_shouldFail_whenLLTVLowerThanAcceptableLTV(uint256 lltv) external {
+    function testFuzz_shouldFail_whenLLTVLowerThanAcceptableLTV(uint256 LLTV) external {
         proposal.maxAcceptableLTV = 9000;
-        proposal.lltv = bound(lltv, 0, proposal.maxAcceptableLTV - 1);
+        proposal.LLTV = bound(LLTV, 0, proposal.maxAcceptableLTV - 1);
 
         bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
         bytes32 proposalHash = _proposalHash(proposal);
 
-        vm.expectRevert(PWNFixedTermsProposal.InvalidLiquidationLoanToValue.selector);
+        vm.expectRevert(PWNFixedInterestProposal.InvalidLiquidationLoanToValue.selector);
         vm.prank(loanContract);
         proposalContract.acceptProposal({
             acceptor: acceptor,
@@ -430,13 +430,13 @@ contract PWNFixedTermsProposal_AcceptProposal_Test is PWNFixedTermsProposalTest 
         });
     }
 
-    function testFuzz_shouldFail_whenLLTVHigherThan100(uint256 lltv) external {
-        proposal.lltv = bound(lltv, 10001, type(uint256).max);
+    function testFuzz_shouldFail_whenLLTVHigherThan100(uint256 LLTV) external {
+        proposal.LLTV = bound(LLTV, 10001, type(uint256).max);
 
         bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
         bytes32 proposalHash = _proposalHash(proposal);
 
-        vm.expectRevert(PWNFixedTermsProposal.InvalidLiquidationLoanToValue.selector);
+        vm.expectRevert(PWNFixedInterestProposal.InvalidLiquidationLoanToValue.selector);
         vm.prank(loanContract);
         proposalContract.acceptProposal({
             acceptor: acceptor,
@@ -455,7 +455,7 @@ contract PWNFixedTermsProposal_AcceptProposal_Test is PWNFixedTermsProposalTest 
         bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
         bytes32 proposalHash = _proposalHash(proposal);
 
-        vm.expectRevert(abi.encodeWithSelector(PWNFixedTermsProposal.LoanToValueTooHigh.selector, 9001, 9000));
+        vm.expectRevert(abi.encodeWithSelector(PWNFixedInterestProposal.LoanToValueTooHigh.selector, 9001, 9000));
         vm.prank(loanContract);
         proposalContract.acceptProposal({
             acceptor: acceptor,
@@ -471,7 +471,7 @@ contract PWNFixedTermsProposal_AcceptProposal_Test is PWNFixedTermsProposalTest 
         bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
         bytes32 proposalHash = _proposalHash(proposal);
 
-        vm.expectRevert(PWNFixedTermsProposal.MinCreditAmountNotSet.selector);
+        vm.expectRevert(PWNFixedInterestProposal.MinCreditAmountNotSet.selector);
         vm.prank(loanContract);
         proposalContract.acceptProposal({
             acceptor: acceptor,
@@ -489,7 +489,7 @@ contract PWNFixedTermsProposal_AcceptProposal_Test is PWNFixedTermsProposalTest 
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                PWNFixedTermsProposal.InsufficientCreditAmount.selector,
+                PWNFixedInterestProposal.InsufficientCreditAmount.selector,
                 acceptorValues.creditAmount,
                 proposal.minCreditAmount
             )
@@ -536,7 +536,7 @@ contract PWNFixedTermsProposal_AcceptProposal_Test is PWNFixedTermsProposalTest 
         assertEq(terms.interestModuleProposerData.length, expectedInterestData.length);
         assertEq(keccak256(terms.interestModuleProposerData), keccak256(expectedInterestData));
         assertEq(address(terms.defaultModule), address(defaultModule));
-        bytes memory expectedDefaultData = abi.encode(PWNChainlinkValueDefaultModule.ProposerData(proposal.lltv, proposal.feedIntermediaryDenominations, proposal.feedInvertFlags));
+        bytes memory expectedDefaultData = abi.encode(PWNChainlinkValueDefaultModule.ProposerData(proposal.LLTV, proposal.feedIntermediaryDenominations, proposal.feedInvertFlags));
         assertEq(terms.defaultModuleProposerData.length, expectedDefaultData.length);
         assertEq(keccak256(terms.defaultModuleProposerData), keccak256(expectedDefaultData));
         assertEq(address(terms.liquidationModule), address(liquidationModule));
@@ -550,10 +550,10 @@ contract PWNFixedTermsProposal_AcceptProposal_Test is PWNFixedTermsProposalTest 
 |*  # ERC712 ENCODE PROPOSAL                                *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedTermsProposal_Erc712EncodeProposal_Test is PWNFixedTermsProposalTest {
+contract PWNFixedInterestProposal_Erc712EncodeProposal_Test is PWNFixedInterestProposalTest {
 
     function test_shouldERC712EncodeProposal() external {
-        PWNFixedTermsProposal.ERC712Proposal memory proposalErc712 = PWNFixedTermsProposal.ERC712Proposal(
+        PWNFixedInterestProposal.ERC712Proposal memory proposalErc712 = PWNFixedInterestProposal.ERC712Proposal(
             proposal.collateralAddress,
             proposal.creditAddress,
             keccak256(abi.encodePacked(proposal.feedIntermediaryDenominations)),
@@ -561,7 +561,7 @@ contract PWNFixedTermsProposal_Erc712EncodeProposal_Test is PWNFixedTermsProposa
             proposal.maxAcceptableLTV,
             proposal.interestAPR,
             proposal.fixationPeriod,
-            proposal.lltv,
+            proposal.LLTV,
             proposal.minCreditAmount,
             proposal.availableCreditLimit,
             proposal.utilizedCreditId,

@@ -10,19 +10,19 @@ import {
     IChainlinkFeedRegistryLike,
     IChainlinkAggregatorLike
 } from "pwn/periphery/lib/Chainlink.sol";
-import { PWNFixedInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNFixedInterestModule.sol";
+import { PWNFixedPeriodInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNFixedPeriodInterestModule.sol";
 import { PWNChainlinkValueDefaultModule, IPWNDefaultModule } from "pwn/periphery/loan/module/default/PWNChainlinkValueDefaultModule.sol";
 import { PWNOpenLiquidationModule, IPWNLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNOpenLiquidationModule.sol";
-import { PWNBaseProposal, Terms } from "pwn/periphery/proposal/PWNBaseProposal.sol";
+import { PWNBaseProposal, Terms, IPWNProposal } from "pwn/periphery/proposal/PWNBaseProposal.sol";
 
 
 /**
- * @title PWNFixedTermsProposal
+ * @title PWNFixedInterestProposal
  * @dev This contract is designed to facilitate the creation and management of proposals
  * that have predetermined, immutable terms. It extends the base proposal functionality
  * by enforcing fixed parameters, ensuring consistency and reliability in proposal agreements.
  */
-contract PWNFixedTermsProposal is PWNBaseProposal {
+contract PWNFixedInterestProposal is PWNBaseProposal {
     using Math for uint256;
     using Chainlink for Chainlink.Config;
     using MultiToken for address;
@@ -36,14 +36,14 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
 
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLTV,uint256 interestAPR,uint256 fixationPeriod,uint256 lltv,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
+        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLTV,uint256 interestAPR,uint256 fixationPeriod,uint256 LLTV,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
     );
 
-    /** @notice Fixed interest module used in the proposal.*/
-    PWNFixedInterestModule public immutable interestModule;
-    /** @notice Duration based default module used in the proposal.*/
+    /** @notice Fixed period interest module used in the proposal.*/
+    PWNFixedPeriodInterestModule public immutable interestModule;
+    /** @notice Chainlink value default module used in the proposal.*/
     PWNChainlinkValueDefaultModule public immutable defaultModule;
-    /** @notice LOAN owner claim liquidation module used in the proposal.*/
+    /** @notice Open liquidation module used in the proposal.*/
     PWNOpenLiquidationModule public immutable liquidationModule;
     /** @notice Chainlink feed registry contract.*/
     IChainlinkFeedRegistryLike public immutable chainlinkFeedRegistry;
@@ -51,7 +51,6 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
     IChainlinkAggregatorLike public immutable chainlinkL2SequencerUptimeFeed;
     /** @notice WETH address. ETH price feed is used for WETH price.*/
     address public immutable WETH;
-
 
     /**
      * @notice Represents the terms and parameters of a fixed-term lending proposal.
@@ -63,7 +62,7 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
      * @param maxAcceptableLTV The maximum acceptable loan-to-value ratio (LTV) for the proposal.
      * @param interestAPR The annual percentage rate (APR) of interest for the loan.
      * @param fixationPeriod The period (in seconds) for which the interest rate is fixed.
-     * @param lltv The liquidation loan-to-value ratio (LLTV) at which collateral may be liquidated.
+     * @param LLTV The liquidation loan-to-value ratio (LLTV) at which collateral may be liquidated.
      * @param minCreditAmount The minimum amount of credit that can be drawn from this proposal.
      * @param availableCreditLimit The total available credit limit for this proposal.
      * @param utilizedCreditId The identifier for the utilized credit portion.
@@ -87,7 +86,7 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
         uint256 interestAPR;
         uint256 fixationPeriod;
         // Default
-        uint256 lltv;
+        uint256 LLTV;
         // Proposal validity
         uint256 minCreditAmount;
         uint256 availableCreditLimit;
@@ -138,8 +137,8 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
         address _chainlinkFeedRegistry,
         address _chainlinkL2SequencerUptimeFeed,
         address _weth
-    ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNFixedTermsProposal", VERSION) {
-        interestModule = PWNFixedInterestModule(_interestModule);
+    ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNFixedInterestProposal", VERSION) {
+        interestModule = PWNFixedPeriodInterestModule(_interestModule);
         defaultModule = PWNChainlinkValueDefaultModule(_defaultModule);
         liquidationModule = PWNOpenLiquidationModule(_liquidationModule);
         chainlinkFeedRegistry = IChainlinkFeedRegistryLike(_chainlinkFeedRegistry);
@@ -220,6 +219,7 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
         }).mulDiv(10 ** LOAN_TO_VALUE_DECIMALS, collateralAmount);
     }
 
+    /** @inheritdoc IPWNProposal*/
     function acceptProposal(
         address acceptor,
         bytes calldata proposalData,
@@ -232,10 +232,10 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
         // Make proposal hash
         bytes32 proposalHash = _getProposalHash(PROPOSAL_TYPEHASH, _erc712EncodeProposal(proposal));
 
-        if (proposal.lltv > 10 ** LOAN_TO_VALUE_DECIMALS) {
+        if (proposal.LLTV > 10 ** LOAN_TO_VALUE_DECIMALS) {
             // If LLTV is greater than 100%, it is invalid
             revert InvalidLiquidationLoanToValue();
-        } else if (proposal.lltv <= proposal.maxAcceptableLTV) {
+        } else if (proposal.LLTV <= proposal.maxAcceptableLTV) {
             // If LLTV is less than max acceptable LTV, it is invalid
             revert InvalidLiquidationLoanToValue();
         }
@@ -293,14 +293,14 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
             principal: acceptorValues.creditAmount,
             interestModule: IPWNInterestModule(interestModule),
             interestModuleProposerData: abi.encode(
-                PWNFixedInterestModule.ProposerData(
+                PWNFixedPeriodInterestModule.ProposerData(
                     proposal.interestAPR, proposal.fixationPeriod
                 )
             ),
             defaultModule: IPWNDefaultModule(defaultModule),
             defaultModuleProposerData: abi.encode(
                 PWNChainlinkValueDefaultModule.ProposerData(
-                    proposal.lltv, proposal.feedIntermediaryDenominations, proposal.feedInvertFlags
+                    proposal.LLTV, proposal.feedIntermediaryDenominations, proposal.feedInvertFlags
                 )
             ),
             liquidationModule: IPWNLiquidationModule(liquidationModule),
@@ -320,7 +320,7 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
         uint256 maxAcceptableLTV;
         uint256 interestAPR;
         uint256 fixationPeriod;
-        uint256 lltv;
+        uint256 LLTV;
         uint256 minCreditAmount;
         uint256 availableCreditLimit;
         bytes32 utilizedCreditId;
@@ -347,7 +347,7 @@ contract PWNFixedTermsProposal is PWNBaseProposal {
             maxAcceptableLTV: proposal.maxAcceptableLTV,
             interestAPR: proposal.interestAPR,
             fixationPeriod: proposal.fixationPeriod,
-            lltv: proposal.lltv,
+            LLTV: proposal.LLTV,
             minCreditAmount: proposal.minCreditAmount,
             availableCreditLimit: proposal.availableCreditLimit,
             utilizedCreditId: proposal.utilizedCreditId,

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { PWNFixedTermsProposal } from "pwn/periphery/proposal/PWNFixedTermsProposal.sol";
+import { PWNFixedInterestProposal } from "pwn/periphery/proposal/PWNFixedInterestProposal.sol";
 
 
-contract PWNFixedTermsProposalHarness is PWNFixedTermsProposal {
+contract PWNFixedInterestProposalHarness is PWNFixedInterestProposal {
 
     constructor(
         address _hub,
@@ -17,7 +17,7 @@ contract PWNFixedTermsProposalHarness is PWNFixedTermsProposal {
         address _chainlinkFeedRegistry,
         address _l2SequencerUptimeFeed,
         address _weth
-    ) PWNFixedTermsProposal(
+    ) PWNFixedInterestProposal(
         _hub,
         _revokedNonce,
         _config,
