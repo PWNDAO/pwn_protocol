@@ -16,7 +16,7 @@ import {
     PWNDurationDefaultModule,
     PWNStableInterestModule,
     PWNClaimLiquidationModule,
-    PWNElasticChainlinkProposal,
+    PWNStableInterestProposal,
     PWNSimpleProposal,
     PWNUniswapV3LPIndividualProposal,
     PWNUniswapV3LPSetProposal,
@@ -103,7 +103,7 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.durationDefaultModule),
             address(__d.claimLiquidationModule)
         );
-        __d.elasticChainlinkProposal = new PWNElasticChainlinkProposal(
+        __d.stableInterestProposal = new PWNStableInterestProposal(
             address(__d.hub),
             address(__d.revokedNonce),
             address(__d.config),
@@ -152,8 +152,8 @@ abstract contract DeploymentTest is Deployments, Test {
         addrs[2] = address(__d.simpleProposal);
         addrs[3] = address(__d.simpleProposal);
 
-        addrs[4] = address(__d.elasticChainlinkProposal);
-        addrs[5] = address(__d.elasticChainlinkProposal);
+        addrs[4] = address(__d.stableInterestProposal);
+        addrs[5] = address(__d.stableInterestProposal);
 
         addrs[6] = address(__d.uniswapV3LPIndividualProposal);
         addrs[7] = address(__d.uniswapV3LPIndividualProposal);

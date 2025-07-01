@@ -5,20 +5,21 @@ import { Test } from "forge-std/Test.sol";
 
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import {
-    PWNElasticChainlinkProposal,
+    PWNStableInterestProposal,
     PWNBaseProposal,
     Terms,
     IChainlinkAggregatorLike,
     IChainlinkFeedRegistryLike,
     Chainlink,
-    MultiToken
-} from "pwn/periphery/proposal/PWNElasticChainlinkProposal.sol";
+    MultiToken,
+    PWNChainlinkValueDefaultModule
+} from "pwn/periphery/proposal/PWNStableInterestProposal.sol";
 
-import { PWNElasticChainlinkProposalHarness } from "test/harness/PWNElasticChainlinkProposalHarness.sol";
+import { PWNStableInterestProposalHarness } from "test/harness/PWNStableInterestProposalHarness.sol";
 import { ChainlinkDenominations } from "test/helper/ChainlinkDenominations.sol";
 
 
-abstract contract PWNElasticChainlinkProposalTest is Test {
+abstract contract PWNStableInterestProposalTest is Test {
 
     address hub = makeAddr("hub");
     address revokedNonce = makeAddr("revokedNonce");
@@ -37,28 +38,24 @@ abstract contract PWNElasticChainlinkProposalTest is Test {
     address weth = makeAddr("weth");
     address l2SequencerUptimeFeed = makeAddr("l2SequencerUptimeFeed");
 
-    PWNElasticChainlinkProposalHarness proposalContract;
-    PWNElasticChainlinkProposal.Proposal proposal;
-    PWNElasticChainlinkProposal.AcceptorValues acceptorValues;
+    PWNStableInterestProposalHarness proposalContract;
+    PWNStableInterestProposal.Proposal proposal;
+    PWNStableInterestProposal.AcceptorValues acceptorValues;
 
-    event ProposalMade(bytes32 indexed proposalHash, address indexed proposer, PWNElasticChainlinkProposal.Proposal proposal);
+    event ProposalMade(bytes32 indexed proposalHash, address indexed proposer, PWNStableInterestProposal.Proposal proposal);
 
     function setUp() virtual public {
-        proposalContract = new PWNElasticChainlinkProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, address(0), weth);
+        proposalContract = new PWNStableInterestProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, address(0), weth);
 
-        bool[] memory feedInvertFlags = new bool[](1);
-        feedInvertFlags[0] = false;
-
-        proposal = PWNElasticChainlinkProposal.Proposal({
-            collateralCategory: MultiToken.Category.ERC1155,
+        proposal = PWNStableInterestProposal.Proposal({
             collateralAddress: token,
-            collateralId: 0,
             creditAddress: token,
             feedIntermediaryDenominations: new address[](0),
-            feedInvertFlags: feedInvertFlags,
-            loanToValue: 10000, // 100%
+            feedInvertFlags: new bool[](1),
+            maxAcceptableLTV: 9000, // 90%
             interestAPR: 0,
-            duration: 1 days,
+            stablePeriod: 365 days,
+            LLTV: 9500, // 95%
             minCreditAmount: 1 ether,
             availableCreditLimit: 0,
             utilizedCreditId: 0,
@@ -70,9 +67,11 @@ abstract contract PWNElasticChainlinkProposalTest is Test {
             isProposerLender: true,
             loanContract: loanContract
         });
+        proposal.feedInvertFlags[0] = false;
 
-        acceptorValues = PWNElasticChainlinkProposal.AcceptorValues({
-            creditAmount: 10 ether
+        acceptorValues = PWNStableInterestProposal.AcceptorValues({
+            creditAmount: 10 ether,
+            collateralAmount: 20 ether
         });
 
         _mockFeed(feed);
@@ -87,18 +86,18 @@ abstract contract PWNElasticChainlinkProposalTest is Test {
     }
 
 
-    function _proposalHash(PWNElasticChainlinkProposal.Proposal memory _proposal) internal view returns (bytes32) {
+    function _proposalHash(PWNStableInterestProposal.Proposal memory _proposal) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(
             hex"1901",
             keccak256(abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256("PWNElasticChainlinkProposal"),
+                keccak256("PWNStableInterestProposal"),
                 keccak256("1.5"),
                 block.chainid,
                 address(proposalContract)
             )),
             keccak256(abi.encodePacked(
-                keccak256("Proposal(uint8 collateralCategory,address collateralAddress,uint256 collateralId,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"),
+                keccak256("Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLTV,uint256 interestAPR,uint256 stablePeriod,uint256 LLTV,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"),
                 proposalContract.exposed_erc712EncodeProposal(_proposal)
             ))
         ));
@@ -160,7 +159,7 @@ abstract contract PWNElasticChainlinkProposalTest is Test {
 |*  # GET PROPOSAL HASH                                     *|
 |*----------------------------------------------------------*/
 
-contract PWNElasticChainlinkProposal_GetProposalHash_Test is PWNElasticChainlinkProposalTest {
+contract PWNStableInterestProposal_GetProposalHash_Test is PWNStableInterestProposalTest {
 
     function test_shouldReturnProposalHash() external {
         assertEq(_proposalHash(proposal), proposalContract.getProposalHash(proposal));
@@ -173,7 +172,7 @@ contract PWNElasticChainlinkProposal_GetProposalHash_Test is PWNElasticChainlink
 |*  # MAKE PROPOSAL                                         *|
 |*----------------------------------------------------------*/
 
-contract PWNElasticChainlinkProposal_MakeProposal_Test is PWNElasticChainlinkProposalTest {
+contract PWNStableInterestProposal_MakeProposal_Test is PWNStableInterestProposalTest {
 
     function testFuzz_shouldFail_whenCallerIsNotProposer(address caller) external {
         vm.assume(caller != proposal.proposer);
@@ -210,24 +209,23 @@ contract PWNElasticChainlinkProposal_MakeProposal_Test is PWNElasticChainlinkPro
 |*  # ENCODE DECODE PROPOSAL DATA                           *|
 |*----------------------------------------------------------*/
 
-contract PWNElasticChainlinkProposal_EncodeDecodeProposalData_Test is PWNElasticChainlinkProposalTest {
+contract PWNStableInterestProposal_EncodeDecodeProposalData_Test is PWNStableInterestProposalTest {
 
     function test_shouldEncodeDecodedProposalData() external {
         (
-            PWNElasticChainlinkProposal.Proposal memory _proposal,
-            PWNElasticChainlinkProposal.AcceptorValues memory _acceptorValues
+            PWNStableInterestProposal.Proposal memory _proposal,
+            PWNStableInterestProposal.AcceptorValues memory _acceptorValues
         ) = proposalContract.decodeProposalData(proposalContract.encodeProposalData(proposal, acceptorValues));
 
-        assertEq(uint8(proposal.collateralCategory), uint8(_proposal.collateralCategory));
         assertEq(proposal.collateralAddress, _proposal.collateralAddress);
-        assertEq(proposal.collateralId, _proposal.collateralId);
         assertEq(proposal.creditAddress, _proposal.creditAddress);
         assertEq(proposal.feedIntermediaryDenominations, _proposal.feedIntermediaryDenominations);
         assertEq(proposal.feedInvertFlags.length, _proposal.feedInvertFlags.length);
         assertEq(keccak256(abi.encode(proposal.feedInvertFlags)), keccak256(abi.encode(_proposal.feedInvertFlags)));
-        assertEq(proposal.loanToValue, _proposal.loanToValue);
+        assertEq(proposal.maxAcceptableLTV, _proposal.maxAcceptableLTV);
         assertEq(proposal.interestAPR, _proposal.interestAPR);
-        assertEq(proposal.duration, _proposal.duration);
+        assertEq(proposal.stablePeriod, _proposal.stablePeriod);
+        assertEq(proposal.LLTV, _proposal.LLTV);
         assertEq(proposal.minCreditAmount, _proposal.minCreditAmount);
         assertEq(proposal.availableCreditLimit, _proposal.availableCreditLimit);
         assertEq(proposal.utilizedCreditId, _proposal.utilizedCreditId);
@@ -240,21 +238,22 @@ contract PWNElasticChainlinkProposal_EncodeDecodeProposalData_Test is PWNElastic
         assertEq(proposal.loanContract, _proposal.loanContract);
 
         assertEq(acceptorValues.creditAmount, _acceptorValues.creditAmount);
+        assertEq(acceptorValues.collateralAmount, _acceptorValues.collateralAmount);
     }
 
 }
 
 
 /*----------------------------------------------------------*|
-|*  # GET COLLATERAL AMOUNT                                 *|
+|*  # GET LOAN TO VALUE                                     *|
 |*----------------------------------------------------------*/
 
-contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChainlinkProposalTest {
+contract PWNStableInterestProposal_GetLoanToValue_Test is PWNStableInterestProposalTest {
 
     address collAddr = makeAddr("collAddr");
     address credAddr = makeAddr("credAddr");
     uint256 credAmount = 10 ether;
-    uint256 loanToValue = 5000; // 50%
+    uint256 collAmount = 20 ether;
     address[] feedIntermediaryDenominations = new address[](0);
     bool[] feedInvertFlags = new bool[](1);
     uint256 L2_GRACE_PERIOD = Chainlink.L2_GRACE_PERIOD;
@@ -267,10 +266,15 @@ contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChain
     }
 
 
+    function test_shouldFail_whenCollateralAmountIsZero() external {
+        vm.expectRevert(abi.encodeWithSelector(PWNStableInterestProposal.CollateralAmountZero.selector));
+        proposalContract.getLoanToValue(credAddr, credAmount, collAddr, 0, feedIntermediaryDenominations, feedInvertFlags);
+    }
+
     function test_shouldFetchSequencerUptimeFeed_whenFeedSet() external {
         vm.warp(1e9);
 
-        proposalContract = new PWNElasticChainlinkProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
+        proposalContract = new PWNStableInterestProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
         _mockSequencerUptimeFeed(true, block.timestamp - L2_GRACE_PERIOD - 1);
         _mockLastRoundData(feed, 1e18, block.timestamp);
 
@@ -279,24 +283,24 @@ contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChain
             abi.encodeWithSelector(IChainlinkAggregatorLike.latestRoundData.selector)
         );
 
-        proposalContract.getCollateralAmount(credAddr, credAmount, collAddr, feedIntermediaryDenominations, feedInvertFlags, loanToValue);
+        proposalContract.getLoanToValue(credAddr, credAmount, collAddr, collAmount, feedIntermediaryDenominations, feedInvertFlags);
     }
 
     function test_shouldFail_whenL2SequencerDown_whenFeedSet() external {
         vm.warp(1e9);
 
-        proposalContract = new PWNElasticChainlinkProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
+        proposalContract = new PWNStableInterestProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
         _mockSequencerUptimeFeed(false, block.timestamp - L2_GRACE_PERIOD - 1);
 
         vm.expectRevert(abi.encodeWithSelector(Chainlink.L2SequencerDown.selector));
-        proposalContract.getCollateralAmount(credAddr, credAmount, collAddr, feedIntermediaryDenominations, feedInvertFlags, loanToValue);
+        proposalContract.getLoanToValue(credAddr, credAmount, collAddr, collAmount, feedIntermediaryDenominations, feedInvertFlags);
     }
 
     function testFuzz_shouldFail_whenL2SequencerUp_whenInGracePeriod_whenFeedSet(uint256 startedAt) external {
         vm.warp(1e9);
         startedAt = bound(startedAt, block.timestamp - L2_GRACE_PERIOD, block.timestamp);
 
-        proposalContract = new PWNElasticChainlinkProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
+        proposalContract = new PWNStableInterestProposalHarness(hub, revokedNonce, config, utilizedCredit, interestModule, defaultModule, liquidationModule, feedRegistry, l2SequencerUptimeFeed, weth);
         _mockSequencerUptimeFeed(true, startedAt);
 
         vm.expectRevert(
@@ -305,7 +309,7 @@ contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChain
                 block.timestamp - startedAt, L2_GRACE_PERIOD
             )
         );
-        proposalContract.getCollateralAmount(credAddr, credAmount, collAddr, feedIntermediaryDenominations, feedInvertFlags, loanToValue);
+        proposalContract.getLoanToValue(credAddr, credAmount, collAddr, collAmount, feedIntermediaryDenominations, feedInvertFlags);
     }
 
     function test_shouldNotFetchSequencerUptimeFeed_whenFeedNotSet() external {
@@ -315,7 +319,7 @@ contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChain
             0
         );
 
-        proposalContract.getCollateralAmount(credAddr, credAmount, collAddr, feedIntermediaryDenominations, feedInvertFlags, loanToValue);
+        proposalContract.getLoanToValue(credAddr, credAmount, collAddr, collAmount, feedIntermediaryDenominations, feedInvertFlags);
     }
 
     function test_shouldFail_whenIntermediaryDenominationsOutOfBounds() external {
@@ -328,7 +332,7 @@ contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChain
                 max + 1, max
             )
         );
-        proposalContract.getCollateralAmount(credAddr, credAmount, collAddr, feedIntermediaryDenominations, feedInvertFlags, loanToValue);
+        proposalContract.getLoanToValue(credAddr, credAmount, collAddr, collAmount, feedIntermediaryDenominations, feedInvertFlags);
     }
 
     function test_shouldFetchCreditAndCollateralPrices() external {
@@ -353,7 +357,7 @@ contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChain
             abi.encodeWithSelector(IChainlinkFeedRegistryLike.getFeed.selector, feedIntermediaryDenominations[1], collAddr)
         );
 
-        proposalContract.getCollateralAmount(credAddr, credAmount, collAddr, feedIntermediaryDenominations, feedInvertFlags, loanToValue);
+        proposalContract.getLoanToValue(credAddr, credAmount, collAddr, collAmount, feedIntermediaryDenominations, feedInvertFlags);
     }
 
     function test_shouldFetchETHPrice_whenWETH() external {
@@ -363,65 +367,40 @@ contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChain
             feedRegistry,
             abi.encodeWithSelector(IChainlinkFeedRegistryLike.getFeed.selector, ChainlinkDenominations.ETH, collAddr)
         );
-        proposalContract.getCollateralAmount(weth, credAmount, collAddr, feedIntermediaryDenominations, feedInvertFlags, loanToValue);
+        proposalContract.getLoanToValue(weth, credAmount, collAddr, collAmount, feedIntermediaryDenominations, feedInvertFlags);
 
         vm.expectCall(
             feedRegistry,
             abi.encodeWithSelector(IChainlinkFeedRegistryLike.getFeed.selector, credAddr, ChainlinkDenominations.ETH)
         );
-        proposalContract.getCollateralAmount(credAddr, credAmount, weth, feedIntermediaryDenominations, feedInvertFlags, loanToValue);
+        proposalContract.getLoanToValue(credAddr, credAmount, weth, collAmount, feedIntermediaryDenominations, feedInvertFlags);
     }
 
-    function test_shouldReturnCorrectDecimals() external {
-        // price = 1
-
-        _mockAssetDecimals(collAddr, 18);
-        _mockAssetDecimals(credAddr, 6);
-        assertEq(
-            proposalContract.getCollateralAmount(credAddr, 8e6, collAddr, feedIntermediaryDenominations, feedInvertFlags, 2000),
-            40e18
-        );
-
-        _mockAssetDecimals(collAddr, 6);
-        _mockAssetDecimals(credAddr, 18);
-        assertEq(
-            proposalContract.getCollateralAmount(credAddr, 8e18, collAddr, feedIntermediaryDenominations, feedInvertFlags, 2000),
-            40e6
-        );
-
-        _mockAssetDecimals(weth, 0);
-        _mockAssetDecimals(credAddr, 18);
-        assertEq(
-            proposalContract.getCollateralAmount(credAddr, 8e18, weth, feedIntermediaryDenominations, feedInvertFlags, 2000),
-            40
-        );
-    }
-
-    function test_shouldReturnCollateralAmount() external {
+    function test_shouldReturnLoanToValue() external {
         _mockFeedDecimals(feed, 8);
 
-        _mockLastRoundData(feed, 300e8, 1);
+        _mockLastRoundData(feed, 2500e8, 1);
         assertEq(
-            proposalContract.getCollateralAmount(credAddr, 8e18, collAddr, feedIntermediaryDenominations, feedInvertFlags, 2000),
-            12000e18
+            proposalContract.getLoanToValue(credAddr, 2e18, collAddr, 5000e18, feedIntermediaryDenominations, feedInvertFlags),
+            10000
         );
 
         _mockLastRoundData(feed, 1e8, 1);
         assertEq(
-            proposalContract.getCollateralAmount(credAddr, 0, collAddr, feedIntermediaryDenominations, feedInvertFlags, 2000),
+            proposalContract.getLoanToValue(credAddr, 0, collAddr, 1000e18, feedIntermediaryDenominations, feedInvertFlags),
             0
         );
 
         _mockLastRoundData(feed, 0.5e8, 1);
         assertEq(
-            proposalContract.getCollateralAmount(credAddr, 20e18, collAddr, feedIntermediaryDenominations, feedInvertFlags, 8000),
-            12.5e18
+            proposalContract.getLoanToValue(credAddr, 20e18, collAddr, 20e18, feedIntermediaryDenominations, feedInvertFlags),
+            5000
         );
 
         _mockLastRoundData(feed, 4e8, 1);
         assertEq(
-            proposalContract.getCollateralAmount(credAddr, 20e18, collAddr, feedIntermediaryDenominations, feedInvertFlags, 20000),
-            40e18
+            proposalContract.getLoanToValue(credAddr, 20e18, collAddr, 100e18, feedIntermediaryDenominations, feedInvertFlags),
+            8000
         );
     }
 
@@ -432,7 +411,59 @@ contract PWNElasticChainlinkProposal_GetCollateralAmount_Test is PWNElasticChain
 |*  # ACCEPT PROPOSAL                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNElasticChainlinkProposal_AcceptProposal_Test is PWNElasticChainlinkProposalTest {
+contract PWNStableInterestProposal_AcceptProposal_Test is PWNStableInterestProposalTest {
+
+    function testFuzz_shouldFail_whenLLTVLowerThanAcceptableLTV(uint256 LLTV) external {
+        proposal.maxAcceptableLTV = 9000;
+        proposal.LLTV = bound(LLTV, 0, proposal.maxAcceptableLTV - 1);
+
+        bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
+        bytes32 proposalHash = _proposalHash(proposal);
+
+        vm.expectRevert(PWNStableInterestProposal.InvalidLiquidationLoanToValue.selector);
+        vm.prank(loanContract);
+        proposalContract.acceptProposal({
+            acceptor: acceptor,
+            proposalData: proposalData,
+            proposalInclusionProof: new bytes32[](0),
+            signature: _sign(proposerPK, proposalHash)
+        });
+    }
+
+    function testFuzz_shouldFail_whenLLTVHigherThan100(uint256 LLTV) external {
+        proposal.LLTV = bound(LLTV, 10001, type(uint256).max);
+
+        bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
+        bytes32 proposalHash = _proposalHash(proposal);
+
+        vm.expectRevert(PWNStableInterestProposal.InvalidLiquidationLoanToValue.selector);
+        vm.prank(loanContract);
+        proposalContract.acceptProposal({
+            acceptor: acceptor,
+            proposalData: proposalData,
+            proposalInclusionProof: new bytes32[](0),
+            signature: _sign(proposerPK, proposalHash)
+        });
+    }
+
+    function test_shouldFail_whenLTVHigherThanMaxAcceptableLTV() external {
+        proposal.maxAcceptableLTV = 9000;
+
+        acceptorValues.creditAmount = 9.001 ether; // 90.01%
+        acceptorValues.collateralAmount = 10 ether;
+
+        bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
+        bytes32 proposalHash = _proposalHash(proposal);
+
+        vm.expectRevert(abi.encodeWithSelector(PWNStableInterestProposal.LoanToValueTooHigh.selector, 9001, 9000));
+        vm.prank(loanContract);
+        proposalContract.acceptProposal({
+            acceptor: acceptor,
+            proposalData: proposalData,
+            proposalInclusionProof: new bytes32[](0),
+            signature: _sign(proposerPK, proposalHash)
+        });
+    }
 
     function test_shouldFail_whenZeroMinCreditAmount() external {
         proposal.minCreditAmount = 0;
@@ -440,7 +471,7 @@ contract PWNElasticChainlinkProposal_AcceptProposal_Test is PWNElasticChainlinkP
         bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
         bytes32 proposalHash = _proposalHash(proposal);
 
-        vm.expectRevert(abi.encodeWithSelector(PWNElasticChainlinkProposal.MinCreditAmountNotSet.selector));
+        vm.expectRevert(PWNStableInterestProposal.MinCreditAmountNotSet.selector);
         vm.prank(loanContract);
         proposalContract.acceptProposal({
             acceptor: acceptor,
@@ -458,7 +489,7 @@ contract PWNElasticChainlinkProposal_AcceptProposal_Test is PWNElasticChainlinkP
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                PWNElasticChainlinkProposal.InsufficientCreditAmount.selector,
+                PWNStableInterestProposal.InsufficientCreditAmount.selector,
                 acceptorValues.creditAmount,
                 proposal.minCreditAmount
             )
@@ -472,8 +503,11 @@ contract PWNElasticChainlinkProposal_AcceptProposal_Test is PWNElasticChainlinkP
         });
     }
 
-    function testFuzz_shouldCallLoanContractWithLoanTerms(uint256 creditAmount, bool isProposerLender) external {
+    function testFuzz_shouldCallLoanContractWithLoanTerms(
+        uint256 creditAmount, uint256 collateralAmount, bool isProposerLender
+    ) external {
         acceptorValues.creditAmount = bound(creditAmount, proposal.minCreditAmount, 1_000_000 ether);
+        acceptorValues.collateralAmount = bound(collateralAmount, acceptorValues.creditAmount * 2, acceptorValues.creditAmount * 3);
         proposal.isProposerLender = isProposerLender;
 
         bytes memory proposalData = proposalContract.encodeProposalData(proposal, acceptorValues);
@@ -491,18 +525,20 @@ contract PWNElasticChainlinkProposal_AcceptProposal_Test is PWNElasticChainlinkP
         assertEq(terms.lender, isProposerLender ? proposal.proposer : acceptor);
         assertEq(terms.borrower, isProposerLender ? acceptor : proposal.proposer);
         assertEq(terms.proposerSpecHash, proposal.proposerSpecHash);
-        assertEq(uint8(terms.collateral.category), uint8(proposal.collateralCategory));
+        assertEq(uint8(terms.collateral.category), uint8(MultiToken.Category.ERC20));
         assertEq(terms.collateral.assetAddress, proposal.collateralAddress);
-        assertEq(terms.collateral.id, proposal.collateralId);
-        assertEq(terms.collateral.amount, acceptorValues.creditAmount); // LTV = 100%
+        assertEq(terms.collateral.id, 0);
+        assertEq(terms.collateral.amount, acceptorValues.collateralAmount);
         assertEq(terms.creditAddress, proposal.creditAddress);
         assertEq(terms.principal, acceptorValues.creditAmount);
         assertEq(address(terms.interestModule), address(interestModule));
-        assertEq(terms.interestModuleProposerData.length, 32);
-        assertEq(keccak256(terms.interestModuleProposerData), keccak256(abi.encode(proposal.interestAPR)));
+        bytes memory expectedInterestData = abi.encode(proposal.interestAPR, proposal.stablePeriod);
+        assertEq(terms.interestModuleProposerData.length, expectedInterestData.length);
+        assertEq(keccak256(terms.interestModuleProposerData), keccak256(expectedInterestData));
         assertEq(address(terms.defaultModule), address(defaultModule));
-        assertEq(terms.defaultModuleProposerData.length, 32);
-        assertEq(keccak256(terms.defaultModuleProposerData), keccak256(abi.encode(proposal.duration)));
+        bytes memory expectedDefaultData = abi.encode(PWNChainlinkValueDefaultModule.ProposerData(proposal.LLTV, proposal.feedIntermediaryDenominations, proposal.feedInvertFlags));
+        assertEq(terms.defaultModuleProposerData.length, expectedDefaultData.length);
+        assertEq(keccak256(terms.defaultModuleProposerData), keccak256(expectedDefaultData));
         assertEq(address(terms.liquidationModule), address(liquidationModule));
         assertEq(terms.liquidationModuleProposerData.length, 0);
     }
@@ -514,19 +550,18 @@ contract PWNElasticChainlinkProposal_AcceptProposal_Test is PWNElasticChainlinkP
 |*  # ERC712 ENCODE PROPOSAL                                *|
 |*----------------------------------------------------------*/
 
-contract PWNElasticChainlinkProposal_Erc712EncodeProposal_Test is PWNElasticChainlinkProposalTest {
+contract PWNStableInterestProposal_Erc712EncodeProposal_Test is PWNStableInterestProposalTest {
 
     function test_shouldERC712EncodeProposal() external {
-        PWNElasticChainlinkProposal.ERC712Proposal memory proposalErc712 = PWNElasticChainlinkProposal.ERC712Proposal(
-            uint8(proposal.collateralCategory),
+        PWNStableInterestProposal.ERC712Proposal memory proposalErc712 = PWNStableInterestProposal.ERC712Proposal(
             proposal.collateralAddress,
-            proposal.collateralId,
             proposal.creditAddress,
             keccak256(abi.encodePacked(proposal.feedIntermediaryDenominations)),
             keccak256(abi.encodePacked(proposal.feedInvertFlags)),
-            proposal.loanToValue,
+            proposal.maxAcceptableLTV,
             proposal.interestAPR,
-            proposal.duration,
+            proposal.stablePeriod,
+            proposal.LLTV,
             proposal.minCreditAmount,
             proposal.availableCreditLimit,
             proposal.utilizedCreditId,

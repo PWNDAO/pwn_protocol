@@ -10,21 +10,22 @@ import {
     IChainlinkFeedRegistryLike,
     IChainlinkAggregatorLike
 } from "pwn/periphery/lib/Chainlink.sol";
-import { PWNStableInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
-import { PWNDurationDefaultModule, IPWNDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
-import { PWNClaimLiquidationModule, IPWNLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
-import { PWNBaseProposal, Terms } from "pwn/periphery/proposal/PWNBaseProposal.sol";
+import { PWNStablePeriodInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNStablePeriodInterestModule.sol";
+import { PWNChainlinkValueDefaultModule, IPWNDefaultModule } from "pwn/periphery/loan/module/default/PWNChainlinkValueDefaultModule.sol";
+import { PWNOpenLiquidationModule, IPWNLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNOpenLiquidationModule.sol";
+import { PWNBaseProposal, Terms, IPWNProposal } from "pwn/periphery/proposal/PWNBaseProposal.sol";
 
 
 /**
- * @title PWN Elastic Chainlink Proposal
- * @notice Contract for creating and accepting elastic loan proposals using Chainlink oracles.
- * Proposals are elastic, which means that they are not tied to a specific collateral or credit amount.
- * The amount of collateral and credit is specified during the proposal acceptance.
+ * @title PWN Stable Interest Proposal
+ * @notice Contract for creating and accepting stable interest loan proposals using Chainlink oracles.
+ * Proposals are flexible, allowing the collateral and credit amounts to be specified at acceptance time.
+ * Chainlink price feeds are used to determine the required collateralization based on the loan-to-value ratio.
  */
-contract PWNElasticChainlinkProposal is PWNBaseProposal {
+contract PWNStableInterestProposal is PWNBaseProposal {
     using Math for uint256;
     using Chainlink for Chainlink.Config;
+    using MultiToken for address;
 
     string public constant VERSION = "1.5";
 
@@ -35,15 +36,15 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
 
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(uint8 collateralCategory,address collateralAddress,uint256 collateralId,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
+        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLTV,uint256 interestAPR,uint256 stablePeriod,uint256 LLTV,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
     );
 
-    /** @notice Stable interest module used in the proposal.*/
-    PWNStableInterestModule public immutable interestModule;
-    /** @notice Duration based default module used in the proposal.*/
-    PWNDurationDefaultModule public immutable defaultModule;
-    /** @notice LOAN owner claim liquidation module used in the proposal.*/
-    PWNClaimLiquidationModule public immutable liquidationModule;
+    /** @notice Stable period interest module used in the proposal.*/
+    PWNStablePeriodInterestModule public immutable interestModule;
+    /** @notice Chainlink value default module used in the proposal.*/
+    PWNChainlinkValueDefaultModule public immutable defaultModule;
+    /** @notice Open liquidation module used in the proposal.*/
+    PWNOpenLiquidationModule public immutable liquidationModule;
     /** @notice Chainlink feed registry contract.*/
     IChainlinkFeedRegistryLike public immutable chainlinkFeedRegistry;
     /** @notice Chainlink feed for L2 Sequencer uptime. Must be address(0) for L1s.*/
@@ -52,41 +53,40 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
     address public immutable WETH;
 
     /**
-     * @notice Construct defining an elastic chainlink proposal.
-     * @param collateralCategory Category of an asset used as a collateral (0 == ERC20, 1 == ERC721, 2 == ERC1155).
-     * @param collateralAddress Address of an asset used as a collateral.
-     * @param collateralId Token id of an asset used as a collateral, in case of ERC20 should be 0.
-     * @param creditAddress Address of an asset which is lended to a borrower.
-     * @param feedIntermediaryDenominations List of intermediary price feeds that will be fetched to get to the collateral asset denominator.
-     * @param feedInvertFlags List of flags indicating if price feeds exist only for inverted base and quote assets.
-     * @param loanToValue Loan to value ratio with 4 decimals. E.g., 6231 == 0.6231 == 62.31%.
-     * @param interestAPR Accruing interest APR with 2 decimals.
-     * @param duration Duration of a loan in seconds.
-     * @param minCreditAmount Minimum amount of tokens which can be borrowed using the proposal.
-     * @param availableCreditLimit Available credit limit for the proposal. It is the maximum amount of tokens which can be borrowed using the proposal. If non-zero, proposal can be accepted more than once, until the credit limit is reached.
-     * @param utilizedCreditId Id of utilized credit. Can be shared between multiple proposals.
-     * @param nonceSpace Nonce space of a proposal nonce. All nonces in the same space can be revoked at once.
-     * @param nonce Additional value to enable identical proposals in time. Without it, it would be impossible to make again proposal, which was once revoked. Can be used to create a group of proposals, where accepting one proposal will make other proposals in the group revoked.
-     * @param expiration Proposal expiration timestamp in seconds.
-     * @param proposer Address of a proposal signer.
-     * @param proposerSpecHash Hash of a proposer specific data, which must be provided during a loan creation.
-     * @param isProposerLender If true, the proposer is a lender. If false, the proposer is a borrower.
-     * @param loanContract Address of a loan contract that will create a loan from the proposal.
+     * @notice Struct representing a stable interest loan proposal.
+     * @dev Contains all parameters required to define a loan proposal, including collateral, credit, interest, and proposal metadata.
+     * @param collateralAddress The address of the collateral asset.
+     * @param creditAddress The address of the credit asset (loan currency).
+     * @param feedIntermediaryDenominations Array of intermediary denominations for price feed routing.
+     * @param feedInvertFlags Array of flags indicating if the price feed should be inverted for each denomination.
+     * @param maxAcceptableLTV The maximum acceptable loan-to-value ratio (LTV), expressed in basis points (1e4 = 100%).
+     * @param interestAPR The annual percentage rate (APR) for the loan interest, expressed in basis points (1e4 = 100%).
+     * @param stablePeriod The period (in seconds) for which the interest rate is stable.
+     * @param LLTV The liquidation loan-to-value threshold, expressed in basis points (1e4 = 100%).
+     * @param minCreditAmount The minimum amount of credit (loan) that can be drawn.
+     * @param availableCreditLimit The total available credit limit for the proposal.
+     * @param utilizedCreditId Identifier for utilized credit, if any.
+     * @param nonceSpace Nonce space for replay protection.
+     * @param nonce Nonce for replay protection.
+     * @param expiration Expiration timestamp of the proposal.
+     * @param proposer The address of the proposal creator.
+     * @param proposerSpecHash Hash of proposer-specific data.
+     * @param isProposerLender Boolean indicating if the proposer is the lender.
+     * @param loanContract The address of the loan contract to be used.
      */
     struct Proposal {
         // Collateral
-        MultiToken.Category collateralCategory;
         address collateralAddress;
-        uint256 collateralId;
         // Credit
         address creditAddress;
         address[] feedIntermediaryDenominations;
         bool[] feedInvertFlags;
-        uint256 loanToValue;
+        uint256 maxAcceptableLTV;
         // Interest
         uint256 interestAPR;
+        uint256 stablePeriod;
         // Default
-        uint256 duration;
+        uint256 LLTV;
         // Proposal validity
         uint256 minCreditAmount;
         uint256 availableCreditLimit;
@@ -103,9 +103,11 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
 
     /**
      * @notice Construct defining values provided by an acceptor.
+     * @param collateralAmount The amount of collateral to be provided by the acceptor.
      * @param creditAmount Amount of credit to be borrowed.
      */
     struct AcceptorValues {
+        uint256 collateralAmount;
         uint256 creditAmount;
     }
 
@@ -116,6 +118,12 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
     error MinCreditAmountNotSet();
     /** @notice Thrown when proposal credit amount is insufficient.*/
     error InsufficientCreditAmount(uint256 current, uint256 limit);
+    /** @notice Thrown when loan to value ratio is too high.*/
+    error LoanToValueTooHigh(uint256 current, uint256 limit);
+    /** @notice Thrown when liquidation loan to value ratio is invalid.*/
+    error InvalidLiquidationLoanToValue();
+    /** @notice Thrown when collateral amount is zero.*/
+    error CollateralAmountZero();
 
 
     constructor(
@@ -129,10 +137,10 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
         address _chainlinkFeedRegistry,
         address _chainlinkL2SequencerUptimeFeed,
         address _weth
-    ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNElasticChainlinkProposal", VERSION) {
-        interestModule = PWNStableInterestModule(_interestModule);
-        defaultModule = PWNDurationDefaultModule(_defaultModule);
-        liquidationModule = PWNClaimLiquidationModule(_liquidationModule);
+    ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNStableInterestProposal", VERSION) {
+        interestModule = PWNStablePeriodInterestModule(_interestModule);
+        defaultModule = PWNChainlinkValueDefaultModule(_defaultModule);
+        liquidationModule = PWNOpenLiquidationModule(_liquidationModule);
         chainlinkFeedRegistry = IChainlinkFeedRegistryLike(_chainlinkFeedRegistry);
         chainlinkL2SequencerUptimeFeed = IChainlinkAggregatorLike(_chainlinkL2SequencerUptimeFeed);
         WETH = _weth;
@@ -184,32 +192,35 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
     }
 
     /**
-     * @notice Compute collateral amount from credit amount, LTV, and Chainlink price feeds.
-     * @param creditAddress Address of credit token.
-     * @param creditAmount Amount of credit.
-     * @param collateralAddress Address of collateral token.
-     * @param feedIntermediaryDenominations List of intermediary price feeds that will be fetched to get to the collateral asset denominator.
-     * @param feedInvertFlags List of flags indicating if price feeds exist only for inverted base and quote assets.
-     * @param loanToValue Loan to value ratio with 4 decimals. E.g., 6231 == 0.6231 == 62.31%.
-     * @return Amount of collateral.
+     * @notice Calculates the loan-to-value (LTV) ratio based on the provided credit and collateral information.
+     * @dev Uses Chainlink price feeds to convert the credit amount to the collateral denomination, then computes the LTV.
+     * @param creditAddress The address of the credit token.
+     * @param creditAmount The amount of credit to be used in the calculation.
+     * @param collateralAddress The address of the collateral token.
+     * @param collateralAmount The amount of collateral provided.
+     * @param feedIntermediaryDenominations An array of intermediary token addresses used for multi-hop price feed conversions.
+     * @param feedInvertFlags An array of boolean flags indicating if each corresponding price feed should be inverted.
+     * @return The computed loan-to-value ratio, with LOAN_TO_VALUE_DECIMALS decimal places.
      */
-    function getCollateralAmount(
+    function getLoanToValue(
         address creditAddress,
         uint256 creditAmount,
         address collateralAddress,
+        uint256 collateralAmount,
         address[] memory feedIntermediaryDenominations,
-        bool[] memory feedInvertFlags,
-        uint256 loanToValue
+        bool[] memory feedInvertFlags
     ) public view returns (uint256) {
+        if (collateralAmount == 0) revert CollateralAmountZero();
         return chainlink().convertDenomination({
             amount: creditAmount,
             oldDenomination: creditAddress,
             newDenomination: collateralAddress,
             feedIntermediaryDenominations: feedIntermediaryDenominations,
             feedInvertFlags: feedInvertFlags
-        }).mulDiv(10 ** LOAN_TO_VALUE_DECIMALS, loanToValue);
+        }).mulDiv(10 ** LOAN_TO_VALUE_DECIMALS, collateralAmount);
     }
 
+    /** @inheritdoc IPWNProposal*/
     function acceptProposal(
         address acceptor,
         bytes calldata proposalData,
@@ -222,6 +233,14 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
         // Make proposal hash
         bytes32 proposalHash = _getProposalHash(PROPOSAL_TYPEHASH, _erc712EncodeProposal(proposal));
 
+        if (proposal.LLTV > 10 ** LOAN_TO_VALUE_DECIMALS) {
+            // If LLTV is greater than 100%, it is invalid
+            revert InvalidLiquidationLoanToValue();
+        } else if (proposal.LLTV <= proposal.maxAcceptableLTV) {
+            // If LLTV is less than max acceptable LTV, it is invalid
+            revert InvalidLiquidationLoanToValue();
+        }
+
         // Check min credit amount
         if (proposal.minCreditAmount == 0) {
             revert MinCreditAmountNotSet();
@@ -230,6 +249,20 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
         // Check sufficient credit amount
         if (acceptorValues.creditAmount < proposal.minCreditAmount) {
             revert InsufficientCreditAmount({ current: acceptorValues.creditAmount, limit: proposal.minCreditAmount });
+        }
+
+        uint256 ltv = getLoanToValue(
+            proposal.creditAddress,
+            acceptorValues.creditAmount,
+            proposal.collateralAddress,
+            acceptorValues.collateralAmount,
+            proposal.feedIntermediaryDenominations,
+            proposal.feedInvertFlags
+        );
+
+        // Check if LTV is within acceptable limits
+        if (ltv > proposal.maxAcceptableLTV) {
+            revert LoanToValueTooHigh(ltv, proposal.maxAcceptableLTV);
         }
 
         // Check if proposal is valid
@@ -256,25 +289,21 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
             lender: proposal.isProposerLender ? proposal.proposer : acceptor,
             borrower: proposal.isProposerLender ? acceptor : proposal.proposer,
             proposerSpecHash: proposal.proposerSpecHash,
-            collateral: MultiToken.Asset({
-                category: proposal.collateralCategory,
-                assetAddress: proposal.collateralAddress,
-                id: proposal.collateralId,
-                amount: getCollateralAmount(
-                    proposal.creditAddress,
-                    acceptorValues.creditAmount,
-                    proposal.collateralAddress,
-                    proposal.feedIntermediaryDenominations,
-                    proposal.feedInvertFlags,
-                    proposal.loanToValue
-                )
-            }),
+            collateral: proposal.collateralAddress.ERC20(acceptorValues.collateralAmount),
             creditAddress: proposal.creditAddress,
             principal: acceptorValues.creditAmount,
             interestModule: IPWNInterestModule(interestModule),
-            interestModuleProposerData: abi.encode(PWNStableInterestModule.ProposerData(proposal.interestAPR)),
+            interestModuleProposerData: abi.encode(
+                PWNStablePeriodInterestModule.ProposerData(
+                    proposal.interestAPR, proposal.stablePeriod
+                )
+            ),
             defaultModule: IPWNDefaultModule(defaultModule),
-            defaultModuleProposerData: abi.encode(PWNDurationDefaultModule.ProposerData(proposal.duration)),
+            defaultModuleProposerData: abi.encode(
+                PWNChainlinkValueDefaultModule.ProposerData(
+                    proposal.LLTV, proposal.feedIntermediaryDenominations, proposal.feedInvertFlags
+                )
+            ),
             liquidationModule: IPWNLiquidationModule(liquidationModule),
             liquidationModuleProposerData: ""
         });
@@ -285,15 +314,14 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
      * @dev Is typecasting dynamic values to bytes32 to allow EIP-712 encoding.
      */
     struct ERC712Proposal {
-        uint8 collateralCategory;
         address collateralAddress;
-        uint256 collateralId;
         address creditAddress;
         bytes32 feedIntermediaryDenominationsHash;
         bytes32 feedInvertFlagsHash;
-        uint256 loanToValue;
+        uint256 maxAcceptableLTV;
         uint256 interestAPR;
-        uint256 duration;
+        uint256 stablePeriod;
+        uint256 LLTV;
         uint256 minCreditAmount;
         uint256 availableCreditLimit;
         bytes32 utilizedCreditId;
@@ -313,15 +341,14 @@ contract PWNElasticChainlinkProposal is PWNBaseProposal {
      */
     function _erc712EncodeProposal(Proposal memory proposal) internal pure returns (bytes memory) {
         ERC712Proposal memory erc712Proposal = ERC712Proposal({
-            collateralCategory: uint8(proposal.collateralCategory),
             collateralAddress: proposal.collateralAddress,
-            collateralId: proposal.collateralId,
             creditAddress: proposal.creditAddress,
             feedIntermediaryDenominationsHash: keccak256(abi.encodePacked(proposal.feedIntermediaryDenominations)),
             feedInvertFlagsHash: keccak256(abi.encodePacked(proposal.feedInvertFlags)),
-            loanToValue: proposal.loanToValue,
+            maxAcceptableLTV: proposal.maxAcceptableLTV,
             interestAPR: proposal.interestAPR,
-            duration: proposal.duration,
+            stablePeriod: proposal.stablePeriod,
+            LLTV: proposal.LLTV,
             minCreditAmount: proposal.minCreditAmount,
             availableCreditLimit: proposal.availableCreditLimit,
             utilizedCreditId: proposal.utilizedCreditId,
