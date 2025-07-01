@@ -10,7 +10,7 @@ import { IPWNInterestModule, INTEREST_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/
 import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
 
 /**
- * @title PWNFixedInterestModule
+ * @title PWNFixedPeriodInterestModule
  * @notice Interest module for PWNLoan contracts with a fixed interest for a set period, then increasing APR after fixation.
  *
  * @dev This module allows each loan to have a fixed interest for a specified fixation period.
@@ -20,7 +20,7 @@ import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
  *
  * Implements the IPWNInterestModule interface and must be initialized via the onLoanCreated hook.
  */
-contract PWNFixedInterestModule is IPWNInterestModule {
+contract PWNFixedPeriodInterestModule is IPWNInterestModule {
     using Math for uint256;
     using SafeCast for uint256;
 

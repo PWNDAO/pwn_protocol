@@ -8,20 +8,20 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 import { IPWNDefaultModule } from "pwn/core/loan/module/IPWNDefaultModule.sol";
 import { IPWNLiquidationModule } from "pwn/core/loan/module/IPWNLiquidationModule.sol";
 import {
-    PWNFixedInterestModule,
+    PWNFixedPeriodInterestModule,
     PWNHub,
     PWNHubTags,
     PWNLoan,
     IPWNInterestModule, INTEREST_MODULE_INIT_HOOK_RETURN_VALUE,
     Math
-} from "pwn/periphery/loan/module/interest/PWNFixedInterestModule.sol";
+} from "pwn/periphery/loan/module/interest/PWNFixedPeriodInterestModule.sol";
 
 using MultiToken for address;
 using Math for uint256;
 
-abstract contract PWNFixedInterestModuleTest is Test {
+abstract contract PWNFixedPeriodInterestModuleTest is Test {
 
-    PWNFixedInterestModule interestModule;
+    PWNFixedPeriodInterestModule interestModule;
     address hub = makeAddr("hub");
     address loanContract = makeAddr("loanContract");
     uint256 loanId = 1;
@@ -29,7 +29,7 @@ abstract contract PWNFixedInterestModuleTest is Test {
 
 
     function setUp() public virtual {
-        interestModule = new PWNFixedInterestModule(PWNHub(hub));
+        interestModule = new PWNFixedPeriodInterestModule(PWNHub(hub));
 
         loan = PWNLoan.LOAN({
             borrower: makeAddr("borrower"),
@@ -77,19 +77,19 @@ abstract contract PWNFixedInterestModuleTest is Test {
 |*  # ON LOAN CREATED                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedInterestModule_OnLoanCreated_Test is PWNFixedInterestModuleTest {
+contract PWNFixedPeriodInterestModule_OnLoanCreated_Test is PWNFixedPeriodInterestModuleTest {
 
     function test_shouldFail_whenCallerIsNotActiveLoan() external {
         _mockHubTag(loanContract, PWNHubTags.ACTIVE_LOAN, false);
 
-        vm.expectRevert(PWNFixedInterestModule.CallerNotActiveLoan.selector);
+        vm.expectRevert(PWNFixedPeriodInterestModule.CallerNotActiveLoan.selector);
         vm.prank(loanContract);
         interestModule.onLoanCreated(loanId, abi.encode(100, 100));
     }
 
     function test_shouldFail_whenProposerDataIsInvalid() external {
         vm.prank(loanContract);
-        vm.expectRevert(PWNFixedInterestModule.InvalidProposerDataLength.selector);
+        vm.expectRevert(PWNFixedPeriodInterestModule.InvalidProposerDataLength.selector);
         interestModule.onLoanCreated(loanId, abi.encode(uint256(1), uint256(1), "wrong data", "format"));
     }
 
@@ -97,7 +97,7 @@ contract PWNFixedInterestModule_OnLoanCreated_Test is PWNFixedInterestModuleTest
         vm.prank(loanContract);
         interestModule.onLoanCreated(loanId, abi.encode(0, 100));
 
-        vm.expectRevert(PWNFixedInterestModule.LoanAlreadyInitialized.selector);
+        vm.expectRevert(PWNFixedPeriodInterestModule.LoanAlreadyInitialized.selector);
         vm.prank(loanContract);
         interestModule.onLoanCreated(loanId, abi.encode(80, 100));
     }
@@ -128,7 +128,7 @@ contract PWNFixedInterestModule_OnLoanCreated_Test is PWNFixedInterestModuleTest
 |*  # INTEREST                                              *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedInterestModule_Interest_Test is PWNFixedInterestModuleTest {
+contract PWNFixedPeriodInterestModule_Interest_Test is PWNFixedPeriodInterestModuleTest {
 
     function setUp() override public virtual {
         super.setUp();
