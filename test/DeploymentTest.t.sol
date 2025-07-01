@@ -180,7 +180,7 @@ abstract contract DeploymentTest is Deployments, Test {
         addrs[14] = address(__d.claimLiquidationModule);
         addrs[15] = address(__d.openLiquidationModule);
 
-        bytes32[] memory tags = new bytes32[](15);
+        bytes32[] memory tags = new bytes32[](16);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
         tags[1] = PWNHubTags.NONCE_MANAGER;
 

@@ -3,38 +3,37 @@ pragma solidity 0.8.16;
 
 import { MultiToken, IERC20 } from "MultiToken/MultiToken.sol";
 
-import { IChainlinkAggregatorLike } from "src/periphery/proposal/PWNElasticChainlinkProposal.sol";
+import { IChainlinkAggregatorLike } from "src/periphery/proposal/PWNStableInterestProposal.sol";
 
 import { ChainlinkDenominations } from "test/helper/ChainlinkDenominations.sol";
 import {
     DeploymentTest,
     PWNLoan,
-    PWNElasticChainlinkProposal
+    PWNStableInterestProposal
 } from "test/DeploymentTest.t.sol";
 
 
-contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
+contract PWNStableInterestProposalForkTest is DeploymentTest {
 
     PWNLoan.LenderSpec lenderSpec;
     PWNLoan.BorrowerSpec borrowerSpec;
-    PWNElasticChainlinkProposal.Proposal proposal;
-    PWNElasticChainlinkProposal.AcceptorValues values;
+    PWNStableInterestProposal.Proposal proposal;
+    PWNStableInterestProposal.AcceptorValues values;
 
     function setUp() public override virtual {
         vm.createSelectFork("mainnet");
 
         super.setUp();
 
-        proposal = PWNElasticChainlinkProposal.Proposal({
-            collateralCategory: MultiToken.Category.ERC20,
+        proposal = PWNStableInterestProposal.Proposal({
             collateralAddress: address(0),
-            collateralId: 0,
             creditAddress: address(0),
             feedIntermediaryDenominations: new address[](0),
             feedInvertFlags: new bool[](0),
-            loanToValue: 8000,
+            maxAcceptableLTV: 8000,
             interestAPR: 0,
-            duration: 1 days,
+            stablePeriod: 1 days,
+            LLTV: 9000,
             minCreditAmount: 1,
             availableCreditLimit: 0,
             utilizedCreditId: 0,
@@ -59,14 +58,24 @@ contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
         }
     }
 
-    function _createLoan() private {
-        bytes memory signature = _sign(lenderPK, __d.elasticChainlinkProposal.getProposalHash(proposal));
-        bytes memory proposalData = __d.elasticChainlinkProposal.encodeProposalData(proposal, values);
+    function _createLoan(uint256 collaterAmount, uint256 creditAmount) private {
+        _createLoan(collaterAmount, creditAmount, "");
+    }
 
+    function _createLoan(uint256 collaterAmount, uint256 creditAmount, bytes memory err) private {
+        values.collateralAmount = collaterAmount;
+        values.creditAmount = creditAmount;
+
+        bytes memory signature = _sign(lenderPK, __d.stableInterestProposal.getProposalHash(proposal));
+        bytes memory proposalData = __d.stableInterestProposal.encodeProposalData(proposal, values);
+
+        if (err.length > 0) {
+            vm.expectRevert(err);
+        }
         vm.prank(borrower);
         __d.loan.create({
             proposalSpec: PWNLoan.ProposalSpec({
-                proposalContract: address(__d.elasticChainlinkProposal),
+                proposalContract: address(__d.stableInterestProposal),
                 proposalData: proposalData,
                 proposalInclusionProof: new bytes32[](0),
                 signature: signature
@@ -96,22 +105,21 @@ contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
         proposal.feedInvertFlags.push(false);
         proposal.availableCreditLimit = 1000 ether;
 
-        values.creditAmount = 300 ether;
-
         vm.prank(borrower);
         WETH.approve(address(__d.loan), type(uint256).max);
         vm.prank(lender);
         APE.approve(address(__d.loan), type(uint256).max);
 
-        _createLoan();
+        (, int256 apePrice,,,) = IChainlinkAggregatorLike(APE_ETH_Feed).latestRoundData();
 
-        (, int256 price,,,) = IChainlinkAggregatorLike(APE_ETH_Feed).latestRoundData();
-        uint256 expectedCollAmount = 300 * uint256(price) / 8 * 10;
+        uint256 aceptableLimit = 500 * uint256(apePrice) * 10 / 8;
 
-        assertEq(APE.balanceOf(lender), 700e18);
-        assertEq(APE.balanceOf(borrower), 300e18);
-        assertApproxEqAbs(WETH.balanceOf(borrower), 1e18 - expectedCollAmount, 0.00001e18);
-        assertApproxEqAbs(WETH.balanceOf(address(__d.loan)), expectedCollAmount, 0.00001e18);
+        _createLoan(aceptableLimit, 500e18);
+        _createLoan(
+            aceptableLimit * 999 / 1000, // decrease collateral by 0.1%
+            500e18,
+            abi.encodeWithSelector(PWNStableInterestProposal.LoanToValueTooHigh.selector, 8008, 8000)
+        );
     }
 
     function test_twoFeeds_USDT_WETH() external {
@@ -136,8 +144,6 @@ contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
         proposal.feedInvertFlags.push(true);
         proposal.availableCreditLimit = 1000e6;
 
-        values.creditAmount = 500e6;
-
         vm.prank(borrower);
         WETH.approve(address(__d.loan), type(uint256).max);
 
@@ -146,16 +152,17 @@ contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
         (bool success, ) = address(USDT).call(abi.encodeWithSignature("approve(address,uint256)", address(__d.loan), type(uint256).max));
         require(success);
 
-        _createLoan();
-
         (, int256 usdtPrice,,,) = IChainlinkAggregatorLike(USDT_USD_Feed).latestRoundData();
         (, int256 ethPrice,,,) = IChainlinkAggregatorLike(ETH_USD_Feed).latestRoundData();
-        uint256 expectedCollAmount = 500e18 * uint256(usdtPrice) / uint256(ethPrice) / 8 * 10;
 
-        assertEq(USDT.balanceOf(lender), 500e6);
-        assertEq(USDT.balanceOf(borrower), 500e6);
-        assertApproxEqAbs(WETH.balanceOf(borrower), 1e18 - expectedCollAmount, 0.00001e18);
-        assertApproxEqAbs(WETH.balanceOf(address(__d.loan)), expectedCollAmount, 0.00001e18);
+        uint256 aceptableLimit = 500e18 * uint256(usdtPrice) / uint256(ethPrice) * 10 / 8;
+
+        _createLoan(aceptableLimit, 500e6);
+        _createLoan(
+            aceptableLimit * 999 / 1000, // decrease collateral by 0.1%
+            500e6,
+            abi.encodeWithSelector(PWNStableInterestProposal.LoanToValueTooHigh.selector, 8007, 8000)
+        );
     }
 
     function test_twoFeeds_ARB_WETH() external {
@@ -180,23 +187,22 @@ contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
         proposal.feedInvertFlags.push(true);
         proposal.availableCreditLimit = 1000 ether;
 
-        values.creditAmount = 500 ether;
-
         vm.prank(borrower);
         WETH.approve(address(__d.loan), type(uint256).max);
         vm.prank(lender);
         ARB.approve(address(__d.loan), type(uint256).max);
 
-        _createLoan();
-
         (, int256 arbPrice,,,) = IChainlinkAggregatorLike(ARB_USD_Feed).latestRoundData();
         (, int256 ethPrice,,,) = IChainlinkAggregatorLike(ETH_USD_Feed).latestRoundData();
-        uint256 expectedCollAmount = 500e18 * uint256(arbPrice) / uint256(ethPrice) / 8 * 10;
 
-        assertEq(ARB.balanceOf(lender), 500e18);
-        assertEq(ARB.balanceOf(borrower), 500e18);
-        assertApproxEqAbs(WETH.balanceOf(borrower), 1e18 - expectedCollAmount, 0.00001e18);
-        assertApproxEqAbs(WETH.balanceOf(address(__d.loan)), expectedCollAmount, 0.00001e18);
+        uint256 aceptableLimit = 500e18 * uint256(arbPrice) / uint256(ethPrice) * 10 / 8;
+
+        _createLoan(aceptableLimit, 500e18);
+        _createLoan(
+            aceptableLimit * 999 / 1000, // decrease collateral by 0.1%
+            500e18,
+            abi.encodeWithSelector(PWNStableInterestProposal.LoanToValueTooHigh.selector, 8007, 8000)
+        );
     }
 
     function test_twoFeeds_USDT_ARB() external {
@@ -221,8 +227,6 @@ contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
         proposal.feedInvertFlags.push(true);
         proposal.availableCreditLimit = 1000e6;
 
-        values.creditAmount = 500e6;
-
         vm.prank(borrower);
         ARB.approve(address(__d.loan), type(uint256).max);
 
@@ -231,16 +235,17 @@ contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
         (bool success, ) = address(USDT).call(abi.encodeWithSignature("approve(address,uint256)", address(__d.loan), type(uint256).max));
         require(success);
 
-        _createLoan();
-
         (, int256 usdtPrice,,,) = IChainlinkAggregatorLike(USDT_USD_Feed).latestRoundData();
         (, int256 arbPrice,,,) = IChainlinkAggregatorLike(ARB_USD_Feed).latestRoundData();
-        uint256 expectedCollAmount = 500e18 * uint256(usdtPrice) / uint256(arbPrice) / 8 * 10;
 
-        assertEq(USDT.balanceOf(lender), 500e6);
-        assertEq(USDT.balanceOf(borrower), 500e6);
-        assertApproxEqAbs(ARB.balanceOf(borrower), 3000e18 - expectedCollAmount, 0.00001e18);
-        assertApproxEqAbs(ARB.balanceOf(address(__d.loan)), expectedCollAmount, 0.00001e18);
+        uint256 aceptableLimit = 500e18 * uint256(usdtPrice) / uint256(arbPrice) * 10 / 8;
+
+        _createLoan(aceptableLimit, 500e6);
+        _createLoan(
+            aceptableLimit * 999 / 1000, // decrease collateral by 0.1%
+            500e6,
+            abi.encodeWithSelector(PWNStableInterestProposal.LoanToValueTooHigh.selector, 8008, 8000)
+        );
     }
 
     function test_twoFeeds_WETH_WBTC() external {
@@ -265,23 +270,23 @@ contract PWNElasticChainlinkProposalForkTest is DeploymentTest {
         proposal.feedInvertFlags.push(true);
         proposal.availableCreditLimit = 1000 ether;
 
-        values.creditAmount = 500 ether;
-
         vm.prank(borrower);
         WBTC.approve(address(__d.loan), type(uint256).max);
         vm.prank(lender);
         WETH.approve(address(__d.loan), type(uint256).max);
 
-        _createLoan();
-
         (, int256 wbtcPrice,,,) = IChainlinkAggregatorLike(WBTC_BTC_Feed).latestRoundData();
         (, int256 btcPrice,,,) = IChainlinkAggregatorLike(BTC_ETH_Feed).latestRoundData();
-        uint256 expectedCollAmount = 500e8 * 1e18 / uint256(btcPrice) * 1e8 / uint256(wbtcPrice) / 8 * 10;
 
-        assertEq(WETH.balanceOf(lender), 500e18);
-        assertEq(WETH.balanceOf(borrower), 500e18);
-        assertApproxEqAbs(WBTC.balanceOf(borrower), 50e8 - expectedCollAmount, 0.00001e8);
-        assertApproxEqAbs(WBTC.balanceOf(address(__d.loan)), expectedCollAmount, 0.00001e8);
+        uint256 aceptableLimit = 500e8 * 1e18 / uint256(btcPrice) * 1e8 / uint256(wbtcPrice) * 10 / 8;
+
+        _createLoan(aceptableLimit, 500e18);
+        _createLoan(
+            aceptableLimit * 999 / 1000, // decrease collateral by 0.1%
+            500e18,
+            abi.encodeWithSelector(PWNStableInterestProposal.LoanToValueTooHigh.selector, 8008, 8000)
+        );
+
     }
 
 }
