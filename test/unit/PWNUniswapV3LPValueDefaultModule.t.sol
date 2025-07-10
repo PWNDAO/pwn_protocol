@@ -20,13 +20,11 @@ import {
     IChainlinkFeedRegistryLike
 } from "pwn/periphery/loan/module/default/PWNUniswapV3LPValueDefaultModule.sol";
 
-import { PWNUniswapV3LPValueDefaultModuleHarness } from "test/harness/PWNUniswapV3LPValueDefaultModuleHarness.sol";
-
 using MultiToken for address;
 
 abstract contract PWNUniswapV3LPValueDefaultModuleTest is Test {
 
-    PWNUniswapV3LPValueDefaultModuleHarness defaultModule;
+    PWNUniswapV3LPValueDefaultModule defaultModule;
     address hub = makeAddr("hub");
     address uniswapV3PositionManager = makeAddr("uniswapV3PositionManager");
     address uniswapV3Factory = makeAddr("uniswapV3Factory");
@@ -44,7 +42,7 @@ abstract contract PWNUniswapV3LPValueDefaultModuleTest is Test {
 
 
     function setUp() public virtual {
-        defaultModule = new PWNUniswapV3LPValueDefaultModuleHarness(
+        defaultModule = new PWNUniswapV3LPValueDefaultModule(
             PWNHub(hub),
             INonfungiblePositionManager(uniswapV3PositionManager),
             uniswapV3Factory,
@@ -376,81 +374,6 @@ contract PWNUniswapV3LPValueDefaultModule_DefaultData_Test is PWNUniswapV3LPValu
         assertEq(_feedIntermediaryDenominations.length, 1);
         for (uint256 i; i < 2; ++i) assertEq(_feedInvertFlags[i], feedInvertFlags[i]);
         assertEq(_feedIntermediaryDenominations[0], feedIntermediaryDenominations[0]);
-    }
-
-}
-
-
-/*----------------------------------------------------------*|
-|*  # ENCODE/DECODE PRICE FEED DATA                         *|
-|*----------------------------------------------------------*/
-
-contract PWNUniswapV3LPValueDefaultModule_EncodeDecodePriceFeedData_Test is PWNUniswapV3LPValueDefaultModuleTest {
-
-    function testFuzz_shouldFail_whenFeedInvertFlagsAndFeedIntermediaryDenominationsLengthMismatch(
-        uint256 invertFlagsLength,
-        uint256 intermediaryDenominationsLength
-    ) external {
-        invertFlagsLength = bound(invertFlagsLength, 1, 5);
-        intermediaryDenominationsLength = bound(intermediaryDenominationsLength, 1, 4);
-        vm.assume(invertFlagsLength != intermediaryDenominationsLength + 1);
-
-        bool[] memory feedInvertFlags = new bool[](invertFlagsLength);
-        address[] memory feedIntermediaryDenominations = new address[](intermediaryDenominationsLength);
-
-        vm.expectRevert(Chainlink.ChainlinkInvalidInputLenghts.selector);
-        defaultModule.exposed_encodePriceFeedData(feedInvertFlags, feedIntermediaryDenominations);
-    }
-
-    function test_shouldEncodeZeroLengthFeedInvertFlagsAndInermediaryDenominations() external {
-        bytes memory encodedData = defaultModule.exposed_encodePriceFeedData(new bool[](0), new address[](0));
-
-        assertEq(encodedData.length, 0);
-    }
-
-    function test_shouldFail_whenFeedItermediaryDenominationsOverMax() external {
-        bool[] memory feedInvertFlags = new bool[](6);
-        address[] memory feedIntermediaryDenominations = new address[](5);
-
-        vm.expectRevert(abi.encodeWithSelector(Chainlink.IntermediaryDenominationsOutOfBounds.selector, 5, 4));
-        defaultModule.exposed_encodePriceFeedData(feedInvertFlags, feedIntermediaryDenominations);
-    }
-
-    function test_shouldEncodePriceFeedData() external {
-        bool[] memory feedInvertFlags = new bool[](3);
-        feedInvertFlags[0] = true;
-        feedInvertFlags[1] = false;
-        feedInvertFlags[2] = true;
-
-        address[] memory feedIntermediaryDenominations = new address[](2);
-        feedIntermediaryDenominations[0] = makeAddr("intermediary1");
-        feedIntermediaryDenominations[1] = makeAddr("intermediary2");
-
-        bytes memory encodedData = defaultModule.exposed_encodePriceFeedData(
-            feedInvertFlags,
-            feedIntermediaryDenominations
-        );
-
-        assertEq(
-            keccak256(encodedData),
-            keccak256(abi.encodePacked(feedInvertFlags[0], feedIntermediaryDenominations[0], feedInvertFlags[1], feedIntermediaryDenominations[1], feedInvertFlags[2]))
-        );
-
-        (bool[] memory decodedFeedInvertFlags, address[] memory decodedFeedIntermediaryDenominations) =
-            defaultModule.exposed_decodePriceFeedData(encodedData);
-
-        assertEq(decodedFeedInvertFlags.length, 3);
-        assertEq(decodedFeedIntermediaryDenominations.length, 2);
-        for (uint256 i; i < 3; ++i) assertEq(decodedFeedInvertFlags[i], feedInvertFlags[i]);
-        for (uint256 i; i < 2; ++i) assertEq(decodedFeedIntermediaryDenominations[i], feedIntermediaryDenominations[i]);
-    }
-
-    function test_shouldDecodeEmptyPriceFeedData() external {
-        (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations) =
-            defaultModule.exposed_decodePriceFeedData("");
-
-        assertEq(feedInvertFlags.length, 0);
-        assertEq(feedIntermediaryDenominations.length, 0);
     }
 
 }

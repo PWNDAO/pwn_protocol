@@ -10,6 +10,7 @@ import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import { IPWNDefaultModule, DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNDefaultModule.sol";
 import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
 import { Chainlink, IChainlinkAggregatorLike, IChainlinkFeedRegistryLike } from "pwn/periphery/lib/Chainlink.sol";
+import { encodeChainlinkPriceFeedData, decodeChainlinkPriceFeedData } from "pwn/periphery/utils/chainlinkUtils.sol";
 
 /**
  * @title PWNChainlinkValueDefaultModule
@@ -108,7 +109,11 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
 
         _defaultData[msg.sender][loanId] = DefaultData({
             lltv: proposer.lltv,
-            feedData: _encodePriceFeedData(proposer.feedInvertFlags, proposer.feedIntermediaryDenominations)
+            feedData: encodeChainlinkPriceFeedData(
+                proposer.feedInvertFlags,
+                proposer.feedIntermediaryDenominations,
+                MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS
+            )
         });
 
         return DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE;
@@ -126,7 +131,7 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
         PWNLoan.LOAN memory loan = PWNLoan(loanContract).getLOAN(loanId);
 
         (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations)
-            = _decodePriceFeedData(data.feedData);
+            = decodeChainlinkPriceFeedData(data.feedData);
 
         uint256 value = _chainlink.convertDenomination({
             amount: PWNLoan(loanContract).getLOANDebt(loanId),
@@ -156,62 +161,7 @@ contract PWNChainlinkValueDefaultModule is IPWNDefaultModule {
         bool[] memory feedInvertFlags
     ) {
         lltv = _defaultData[loanContract][loanId].lltv;
-        (feedInvertFlags, feedIntermediaryDenominations) = _decodePriceFeedData(_defaultData[loanContract][loanId].feedData);
-    }
-
-
-    /**
-     * @notice Encodes price feed intermediary denominations and invert flags into a bytes array.
-     * @dev Reverts if input array lengths are invalid or if the number of intermediary denominations exceeds the maximum allowed.
-     * @param feedInvertFlags Array of boolean flags indicating if the feed should be inverted at each step. Must be one longer than denominations.
-     * @param feedIntermediaryDenominations Array of intermediary denomination addresses for Chainlink feed conversion.
-     * @return data Custom encoded data containing Chainlink price feed configuration. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
-     */
-    function _encodePriceFeedData(
-        bool[] memory feedInvertFlags,
-        address[] memory feedIntermediaryDenominations
-    ) internal pure returns (bytes memory data) {
-        if (feedIntermediaryDenominations.length + 1 != feedInvertFlags.length) {
-            revert Chainlink.ChainlinkInvalidInputLenghts();
-        }
-        uint256 intermediaryDenominationsLength = feedIntermediaryDenominations.length;
-        if (intermediaryDenominationsLength > MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS) {
-            revert Chainlink.IntermediaryDenominationsOutOfBounds(
-                intermediaryDenominationsLength,
-                MAX_CHAINLINK_INTERMEDIARY_DENOMINATIONS
-            );
-        }
-
-        for (uint256 i; i < intermediaryDenominationsLength; ++i) {
-            data = abi.encodePacked(data, feedInvertFlags[i], feedIntermediaryDenominations[i]);
-        }
-        data = abi.encodePacked(data, feedInvertFlags[intermediaryDenominationsLength]);
-    }
-
-    /**
-     * @notice Decodes a bytes array into price feed intermediary denominations and invert flags.
-     * @dev The input data must be encoded as per _encodePriceFeedData.
-     * @param data Custom encoded data containing Chainlink price feed configuration. Always encoded as 1 byte of inverted flag and 20 bytes of intermediary denomination address per step.
-     * @return feedInvertFlags Array of boolean flags indicating if the feed should be inverted at each step.
-     * @return feedIntermediaryDenominations Array of intermediary denomination addresses for Chainlink feed conversion.
-     */
-    function _decodePriceFeedData(
-        bytes memory data
-    ) internal pure returns (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations) {
-        uint256 intermediaryDenominationsLength = (data.length - 1) / 21;
-
-        feedInvertFlags = new bool[](intermediaryDenominationsLength + 1);
-        feedIntermediaryDenominations = new address[](intermediaryDenominationsLength);
-
-        for (uint256 i; i < intermediaryDenominationsLength; ++i) {
-            feedInvertFlags[i] = data[i * 21] == bytes1(0x01);
-            address addr;
-            assembly {
-                addr := shr(96, mload(add(add(data, 0x20), add(mul(i, 21), 1))))
-            }
-            feedIntermediaryDenominations[i] = addr;
-        }
-        feedInvertFlags[intermediaryDenominationsLength] = data[data.length - 1] == bytes1(0x01);
+        (feedInvertFlags, feedIntermediaryDenominations) = decodeChainlinkPriceFeedData(_defaultData[loanContract][loanId].feedData);
     }
 
 }
