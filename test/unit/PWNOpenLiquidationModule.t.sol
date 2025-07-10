@@ -7,7 +7,6 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 
 import {
     PWNOpenLiquidationModule,
-    IERC721Receiver, IERC1155Receiver, IERC165,
     PWNLoan,
     IPWNLiquidationModule, LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE
 } from "pwn/periphery/loan/module/liquidation/PWNOpenLiquidationModule.sol";
@@ -104,61 +103,6 @@ contract PWNOpenLiquidationModule_Liquidate_Test is PWNOpenLiquidationModuleTest
         vm.prank(loanContract);
         uint256 result = liquidationModule.liquidate(loanId, liquidator, debt, creditAddress, collateral, "");
         assertEq(result, debt);
-    }
-
-}
-
-
-/*----------------------------------------------------------*|
-|*  # RECEIVED HOOKS                                        *|
-|*----------------------------------------------------------*/
-
-contract PWNOpenLiquidationModule_ReceivedHooks_Test is PWNOpenLiquidationModuleTest {
-
-    function test_shouldReturnSelector_whenERC721Received() external {
-        bytes4 selector = liquidationModule.onERC721Received(
-            address(0), address(0), 0, ""
-        );
-        assertEq(selector, IERC721Receiver.onERC721Received.selector);
-    }
-
-    function test_shouldReturnSelector_whenERC1155Received() external {
-        bytes4 selector = liquidationModule.onERC1155Received(
-            address(0), address(0), 0, 0, ""
-        );
-        assertEq(selector, IERC1155Receiver.onERC1155Received.selector);
-    }
-
-    function test_shouldReturnSelector_whenERC1155BatchReceived() external {
-        bytes4 selector = liquidationModule.onERC1155BatchReceived(
-            address(0), address(0), new uint256[](0), new uint256[](0), ""
-        );
-        assertEq(selector, IERC1155Receiver.onERC1155BatchReceived.selector);
-    }
-
-}
-
-
-/*----------------------------------------------------------*|
-|*  # SUPPORTED INTERFACES                                  *|
-|*----------------------------------------------------------*/
-
-contract PWNOpenLiquidationModule_SupportedInterfaces_Test is PWNOpenLiquidationModuleTest {
-
-    function test_shouldSupportIPWNLiquidationModule() external {
-        assertTrue(liquidationModule.supportsInterface(type(IPWNLiquidationModule).interfaceId));
-    }
-
-    function test_shouldSupportIERC165() external {
-        assertTrue(liquidationModule.supportsInterface(type(IERC165).interfaceId));
-    }
-
-    function test_shouldSupportIERC721Receiver() external {
-        assertTrue(liquidationModule.supportsInterface(type(IERC721Receiver).interfaceId));
-    }
-
-    function test_shouldSupportIERC1155Receiver() external {
-        assertTrue(liquidationModule.supportsInterface(type(IERC1155Receiver).interfaceId));
     }
 
 }

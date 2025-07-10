@@ -6,11 +6,9 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 import { IERC1155Receiver, IERC165 } from "openzeppelin/token/ERC1155/IERC1155Receiver.sol";
 
-import {
-    IPWNLiquidationModule,
-    IPWNModuleInitializationHook,
-    LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE
-} from "pwn/core/loan/module/IPWNLiquidationModule.sol";
+import { PWNHub } from "pwn/core/hub/PWNHub.sol";
+import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
+import { IPWNLiquidationModule, LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNLiquidationModule.sol";
 import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
 
 
@@ -22,17 +20,41 @@ import { PWNLoan } from "pwn/core/loan/PWNLoan.sol";
 contract PWNClaimLiquidationModule is IPWNLiquidationModule, IERC721Receiver, IERC1155Receiver {
     using MultiToken for MultiToken.Asset;
 
+    /** @notice Reference to the PWN Hub contract.*/
+    PWNHub public immutable hub;
+
+    /** @notice Mapping from loan ID to the address of the loan contract can liquidate the loan.*/
+    mapping (uint256 => address) internal _loanContracts;
+
+    /** @notice Thrown when the provided hub address is zero.*/
+    error HubZeroAddress();
+    /** @notice Thrown when the caller does not have the ACTIVE_LOAN tag in the hub.*/
+    error CallerNotActiveLoan();
+    /** @notice Thrown when a loan is already initialized in this module.*/
+    error LoanAlreadyInitialized();
     /** @notice Thrown when the liquidator is not the LOAN token owner.*/
     error LiquidatorNotLoanOwner(address owner, address liquidator, address loanContract, uint256 loanId);
     /** @notice Thrown when the liquidation data is not empty.*/
     error LiquidationDataNotEmpty();
+    /** @notice Thrown when the liquidation caller is not a loan contract.*/
+    error CallerNotLoanContract();
+
+    constructor(PWNHub _hub) {
+        if (address(_hub) == address(0)) revert HubZeroAddress();
+        hub = _hub;
+    }
 
     /**
      * @notice Initialization hook for the liquidation module, called on loan creation.
      * @dev Always returns the expected hook return value. No initialization logic is required.
-     * @inheritdoc IPWNModuleInitializationHook
      */
-    function onLoanCreated(uint256 /* loanId */, bytes calldata /* proposerData */) external pure returns (bytes32) {
+    function onLoanCreated(uint256 loanId, bytes calldata proposerData) external returns (bytes32) {
+        if (!hub.hasTag(msg.sender, PWNHubTags.ACTIVE_LOAN)) revert CallerNotActiveLoan();
+        if (_loanContracts[loanId] != address(0)) revert LoanAlreadyInitialized();
+        if (proposerData.length != 0) revert LiquidationDataNotEmpty();
+
+        _loanContracts[loanId] = msg.sender;
+
         return LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE;
     }
 
@@ -44,15 +66,18 @@ contract PWNClaimLiquidationModule is IPWNLiquidationModule, IERC721Receiver, IE
     function liquidate(
         uint256 loanId,
         address liquidator,
+        address /* borrower */,
         uint256 /* debt */,
         address /* creditAddress */,
         MultiToken.Asset calldata collateral,
         bytes calldata data
     ) external returns (uint256) {
         address loanContract = msg.sender;
+        if (_loanContracts[loanId] != loanContract) revert CallerNotLoanContract();
+        if (data.length != 0) revert LiquidationDataNotEmpty();
+
         address loanOwner = PWNLoan(loanContract).loanToken().ownerOf(loanId);
         if (loanOwner != liquidator) revert LiquidatorNotLoanOwner(loanOwner, liquidator, loanContract, loanId);
-        if (data.length != 0) revert LiquidationDataNotEmpty();
 
         collateral.transferAssetFrom(address(this), loanOwner);
 
