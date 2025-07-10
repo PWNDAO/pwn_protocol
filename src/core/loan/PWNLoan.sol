@@ -136,7 +136,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
     /** @notice Emitted when a loan repayment is claimed.*/
     event LOANRepaymentClaimed(uint256 indexed loanId, uint256 claimedAmount);
     /** @notice Emitted when a loan collateral is liquidated.*/
-    event LOANLiquidated(uint256 indexed loanId, address indexed liquidator, uint256 liquidationAmount);
+    event LOANLiquidated(uint256 indexed loanId, address indexed liquidator, address indexed liquidationModule, uint256 liquidationAmount);
 
 
     /*----------------------------------------------------------*|

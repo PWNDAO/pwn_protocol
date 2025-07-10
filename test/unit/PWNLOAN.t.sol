@@ -69,7 +69,7 @@ abstract contract PWNLoanTest is Test {
     event LOANCreated(uint256 indexed loanId, bytes32 indexed proposalHash, address indexed proposalContract, Terms terms, PWNLoan.LenderSpec lenderSpec, PWNLoan.BorrowerSpec borrowerSpec, bytes extra);
     event LOANRepaid(uint256 indexed loanId, uint256 repaymentAmount, uint256 indexed newPrincipal);
     event LOANRepaymentClaimed(uint256 indexed loanId, uint256 claimedAmount);
-    event LOANLiquidated(uint256 indexed loanId, address indexed liquidator, uint256 liquidationAmount);
+    event LOANLiquidated(uint256 indexed loanId, address indexed liquidator, address indexed liquidationModule, uint256 liquidationAmount);
 
     function setUp() virtual public {
         vm.etch(hub, bytes("data"));
@@ -1596,7 +1596,7 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
 
     function test_shouldEmit_LOANLiquidated() external {
         vm.expectEmit();
-        emit LOANLiquidated(loanId, address(liquidationModule), 67 ether);
+        emit LOANLiquidated(loanId, address(this), address(liquidationModule), 67 ether);
 
         loanContract.liquidate(loanId, "");
     }
