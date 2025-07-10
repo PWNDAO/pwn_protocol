@@ -639,6 +639,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         uint256 liquidationAmount = liquidationModule.liquidate({
             loanId: loanId,
             liquidator: msg.sender,
+            borrower: loan.borrower,
             debt: debt,
             creditAddress: loan.creditAddress,
             collateral: loan.collateral,
@@ -651,7 +652,8 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         // Emit liquidation event
         emit LOANLiquidated({
             loanId: loanId,
-            liquidator: address(liquidationModule),
+            liquidator: msg.sender,
+            liquidationModule: address(liquidationModule),
             liquidationAmount: liquidationAmount
         });
 

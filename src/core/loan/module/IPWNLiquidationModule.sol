@@ -40,6 +40,7 @@ interface IPWNLiquidationModule is IPWNModuleInitializationHook {
      * Liquidation amount is transferred by the PWNLoan contract at the end of the liquidation process.
      * @param loanId The unique identifier of the loan.
      * @param liquidator The address of the entity initiating the liquidation.
+     * @param borrower The address of the borrower whose loan is being liquidated.
      * @param debt The total outstanding debt of the loan at the time of liquidation.
      * @param creditAddress The address of the credit token used for the loan.
      * @param collateral The collateral asset being liquidated, represented as a MultiToken.Asset struct.
@@ -49,6 +50,7 @@ interface IPWNLiquidationModule is IPWNModuleInitializationHook {
     function liquidate(
         uint256 loanId,
         address liquidator,
+        address borrower,
         uint256 debt,
         address creditAddress,
         MultiToken.Asset calldata collateral,
