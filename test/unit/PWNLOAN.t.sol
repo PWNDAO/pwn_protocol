@@ -1625,7 +1625,7 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
             address(liquidationModule),
             abi.encodeWithSelector(
                 IPWNLiquidationModule.liquidate.selector,
-                loanId, liquidator, debt, loan.creditAddress, loan.collateral, "module data"
+                loanId, liquidator, borrower, debt, loan.creditAddress, loan.collateral, "module data"
             )
         );
 
