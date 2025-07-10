@@ -19,7 +19,6 @@ import { IChainlinkAggregatorLike } from "pwn/periphery/interfaces/IChainlinkAgg
 import { PWNDurationDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
 import { PWNChainlinkValueDefaultModule } from "pwn/periphery/loan/module/default/PWNChainlinkValueDefaultModule.sol";
 import { PWNStableInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
-import { PWNStablePeriodInterestModule } from "pwn/periphery/loan/module/interest/PWNStablePeriodInterestModule.sol";
 import { PWNClaimLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
 import { PWNOpenLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNOpenLiquidationModule.sol";
 
@@ -60,7 +59,6 @@ abstract contract Deployments is CommonBase {
         PWNDurationDefaultModule durationDefaultModule;
         PWNOpenLiquidationModule openLiquidationModule;
         PWNStableInterestProposal stableInterestProposal;
-        PWNStablePeriodInterestModule stablePeriodInterestModule;
         PWNHub hub;
         PWNLoan loan;
         PWNLOAN loanToken;
