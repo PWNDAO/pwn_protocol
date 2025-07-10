@@ -10,7 +10,7 @@ import {
     IChainlinkFeedRegistryLike,
     IChainlinkAggregatorLike
 } from "pwn/periphery/lib/Chainlink.sol";
-import { PWNStablePeriodInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNStablePeriodInterestModule.sol";
+import { PWNStableInterestModule, IPWNInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
 import { PWNChainlinkValueDefaultModule, IPWNDefaultModule } from "pwn/periphery/loan/module/default/PWNChainlinkValueDefaultModule.sol";
 import { PWNOpenLiquidationModule, IPWNLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNOpenLiquidationModule.sol";
 import { PWNBaseProposal, Terms, IPWNProposal } from "pwn/periphery/proposal/PWNBaseProposal.sol";
@@ -39,8 +39,8 @@ contract PWNStableInterestProposal is PWNBaseProposal {
         "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLTV,uint256 interestAPR,uint256 stablePeriod,uint256 LLTV,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
     );
 
-    /** @notice Stable period interest module used in the proposal.*/
-    PWNStablePeriodInterestModule public immutable interestModule;
+    /** @notice Stable interest module used in the proposal.*/
+    PWNStableInterestModule public immutable interestModule;
     /** @notice Chainlink value default module used in the proposal.*/
     PWNChainlinkValueDefaultModule public immutable defaultModule;
     /** @notice Open liquidation module used in the proposal.*/
@@ -138,7 +138,7 @@ contract PWNStableInterestProposal is PWNBaseProposal {
         address _chainlinkL2SequencerUptimeFeed,
         address _weth
     ) PWNBaseProposal(_hub, _revokedNonce, _config, _utilizedCredit, "PWNStableInterestProposal", VERSION) {
-        interestModule = PWNStablePeriodInterestModule(_interestModule);
+        interestModule = PWNStableInterestModule(_interestModule);
         defaultModule = PWNChainlinkValueDefaultModule(_defaultModule);
         liquidationModule = PWNOpenLiquidationModule(_liquidationModule);
         chainlinkFeedRegistry = IChainlinkFeedRegistryLike(_chainlinkFeedRegistry);
@@ -294,9 +294,7 @@ contract PWNStableInterestProposal is PWNBaseProposal {
             principal: acceptorValues.creditAmount,
             interestModule: IPWNInterestModule(interestModule),
             interestModuleProposerData: abi.encode(
-                PWNStablePeriodInterestModule.ProposerData(
-                    proposal.interestAPR, proposal.stablePeriod
-                )
+                PWNStableInterestModule.ProposerData(proposal.interestAPR)
             ),
             defaultModule: IPWNDefaultModule(defaultModule),
             defaultModuleProposerData: abi.encode(
