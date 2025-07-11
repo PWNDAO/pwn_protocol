@@ -609,9 +609,9 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      * @notice Liquidate a defaulted loan by a liquidation module.
      * @dev The liquidation module can use any amount of credit asset to be repaid to lender for the liquidation.
      * @param loanId Id of a loan that is being liquidated.
-     * @param data Additional data passed to the liquidation module.
+     * @param liquidationData Additional data passed to the liquidation module.
      */
-    function liquidate(uint256 loanId, bytes calldata data) external nonLoanContextReentrant(loanId) {
+    function liquidate(uint256 loanId, bytes calldata liquidationData) external nonLoanContextReentrant(loanId) {
         uint8 status = getLOANStatus(loanId);
         if (status != LOANStatus.DEFAULTED) revert LoanNotDefaulted();
 
@@ -636,7 +636,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
             debt: debt,
             creditAddress: loan.creditAddress,
             collateral: loan.collateral,
-            data: data
+            liquidationData: liquidationData
         });
         if (liquidationAmount > 0) {
             _settleRepayment(loanId, address(product), loan.creditAddress, liquidationAmount);

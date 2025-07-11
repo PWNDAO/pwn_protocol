@@ -438,7 +438,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
         (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations)
             = decodeChainlinkPriceFeedData(data.feedData);
 
-        uint256 liquidationValue = getCreditAmount(
+        uint256 lpLiquidationValue = getCreditAmount(
             creditAddress,
             collateral.id,
             data.token0Denominator,
@@ -447,8 +447,8 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
             data.lltv
         );
 
-        if (liquidationValue > debt) {
-            credit.amount = liquidationValue - debt;
+        if (lpLiquidationValue > debt) {
+            credit.amount = lpLiquidationValue - debt;
             credit.transferAssetFrom(liquidator, borrower);
         }
 
