@@ -36,7 +36,7 @@ interface IPWNLiquidationModule {
      * @param debt The total outstanding debt of the loan at the time of liquidation.
      * @param creditAddress The address of the credit token used for the loan.
      * @param collateral The collateral asset being liquidated, represented as a MultiToken.Asset struct.
-     * @param data Additional data that may be required for custom liquidation logic.
+     * @param liquidationData Additional data that may be required for custom liquidation logic.
      * @return liquidationAmount The amount of collateral liquidated, which can be less than, greater than, or equal to the debt.
      */
     function liquidate(
@@ -46,6 +46,6 @@ interface IPWNLiquidationModule {
         uint256 debt,
         address creditAddress,
         MultiToken.Asset calldata collateral,
-        bytes calldata data
+        bytes calldata liquidationData
     ) external returns (uint256 liquidationAmount);
 }
