@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import { Test } from "forge-std/Test.sol";
 
-import { PWNSignatureChecker } from "pwn/periphery/lib/PWNSignatureChecker.sol";
+import { PWNSignatureChecker } from "pwn/core/lib/PWNSignatureChecker.sol";
 
 import { PWNSignatureCheckerHarness } from "test/harness/PWNSignatureCheckerHarness.sol";
 
