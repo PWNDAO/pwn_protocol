@@ -21,8 +21,8 @@ import {
     INonfungiblePositionManager
 } from "pwn/periphery/lib/UniswapV3.sol";
 import { encodeChainlinkPriceFeedData, decodeChainlinkPriceFeedData } from "pwn/periphery/utils/chainlinkUtils.sol";
-import { PWNRevokedNonce } from "pwn/periphery/proposal/auxiliary/PWNRevokedNonce.sol";
-import { PWNUtilizedCredit } from "pwn/periphery/proposal/auxiliary/PWNUtilizedCredit.sol";
+import { PWNRevokedNonce } from "pwn/periphery/auxiliary/PWNRevokedNonce.sol";
+import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol";
 
 
 /**
