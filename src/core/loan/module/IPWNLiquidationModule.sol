@@ -3,10 +3,6 @@ pragma solidity 0.8.16;
 
 import { MultiToken } from "MultiToken/MultiToken.sol";
 
-import { IPWNModuleInitializationHook } from "pwn/core/loan/module/IPWNModuleInitializationHook.sol";
-
-bytes32 constant LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNLiquidationModule.onLoanCreated");
-
 /**
  * @title IPWNLiquidationModule
  * @notice Interface for PWN liquidation modules used by the PWNLoan contract.
@@ -24,15 +20,11 @@ bytes32 constant LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNLiqui
  * Do not fetch the debt from the loan contract, as the debt is removed from the loan contract state
  * prior to calling the liquidation module. Always rely on the provided argument for the correct value.
  *
- * The module must implement the `onLoanCreated` initialization hook, which is called by PWNLoan
- * at loan origination to configure the module for the specific loan. The hook must return a keccak256 hash
- * of "PWNLiquidationModule.onLoanCreated".
- *
  * The caller of the `liquidate` function is always expected to be the Loan contract. However, modules should implement
  * additional access control checks to ensure that only the authorized Loan contract can call this function and prevent
  * unauthorized access or misuse.
  */
-interface IPWNLiquidationModule is IPWNModuleInitializationHook {
+interface IPWNLiquidationModule {
     /**
      * @notice Executes the liquidation process for a loan.
      * @dev This function is called by PWNLoan to perform the liquidation process.

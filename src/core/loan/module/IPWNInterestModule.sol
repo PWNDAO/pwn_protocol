@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { IPWNModuleInitializationHook } from "pwn/core/loan/module/IPWNModuleInitializationHook.sol";
-
-bytes32 constant INTEREST_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNInterestModule.onLoanCreated");
-
 /**
  * @title IPWNInterestModule
  * @notice Interface for PWN interest modules used by the PWNLoan contract.
@@ -20,12 +16,8 @@ bytes32 constant INTEREST_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNInterest
  *
  * The `interest` function MUST NOT revert. If the call to this function reverts, it will be interpreted
  * by the loan contract as returning zero interest accrued. Always return a value.
- *
- * The module must also implement the `onLoanCreated` initialization hook, which is called by PWNLoan
- * at loan origination to configure the module for the specific loan. The hook must return a
- * keccak256 hash of "PWNInterestModule.onLoanCreated".
  */
-interface IPWNInterestModule is IPWNModuleInitializationHook {
+interface IPWNInterestModule {
     /**
      * @notice Returns the interest accrued for a loan since its last update.
      * @dev The implementation must fetch the `lastUpdateTimestamp` from the loan contract

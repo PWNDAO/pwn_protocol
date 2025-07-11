@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { IPWNModuleInitializationHook } from "pwn/core/loan/module/IPWNModuleInitializationHook.sol";
-
-bytes32 constant DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNDefaultModule.onLoanCreated");
-
 /**
  * @title IPWNDefaultModule
  * @notice Interface for PWN default modules used by the PWNLoan contract.
@@ -16,12 +12,8 @@ bytes32 constant DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE = keccak256("PWNDefaultMo
  *
  * The `isDefaulted` function MUST NOT revert. If the call to this function reverts, it will be interpreted
  * by the loan contract as returning false (i.e., the loan is not in default). Always return a boolean value.
- *
- * The module must also implement the `onLoanCreated` initialization hook, which is called by PWNLoan
- * at loan origination to configure the module for the specific loan. The hook must return a
- * keccak256 hash of "PWNDefaultModule.onLoanCreated".
  */
-interface IPWNDefaultModule is IPWNModuleInitializationHook {
+interface IPWNDefaultModule {
     /**
      * @notice Returns whether the loan is currently in default.
      * @dev The implementation must fetch relevant loan state from the loan contract
