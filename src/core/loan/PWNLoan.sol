@@ -12,14 +12,11 @@ import { IPWNBorrowerCreateHook, BORROWER_CREATE_HOOK_RETURN_VALUE } from "pwn/c
 import { IPWNBorrowerCollateralRepaymentHook, BORROWER_COLLATERAL_REPAYMENT_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNBorrowerCollateralRepaymentHook.sol";
 import { IPWNLenderCreateHook, LENDER_CREATE_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNLenderCreateHook.sol";
 import { IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNLenderRepaymentHook.sol";
-import { IPWNModuleInitializationHook } from "pwn/core/loan/module/IPWNModuleInitializationHook.sol";
-import { IPWNDefaultModule, DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNDefaultModule.sol";
-import { IPWNInterestModule, INTEREST_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNInterestModule.sol";
-import { IPWNLiquidationModule, LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE } from "pwn/core/loan/module/IPWNLiquidationModule.sol";
+import { IPWNProduct } from "pwn/core/product/IPWNProduct.sol";
 import { LOANStatus } from "pwn/core/loan/LOANStatus.sol";
 import { LoanTerms as Terms } from "pwn/core/loan/LoanTerms.sol";
+import { PWNProposalManager } from "pwn/core/loan/PWNProposalManager.sol";
 import { PWNVault } from "pwn/core/loan/PWNVault.sol";
-import { IPWNProposal } from "pwn/core/proposal/IPWNProposal.sol";
 import { IERC5646 } from "pwn/core/token/IERC5646.sol";
 import { IPWNLoanMetadataProvider } from "pwn/core/token/IPWNLoanMetadataProvider.sol";
 import { PWNLOAN } from "pwn/core/token/PWNLOAN.sol";
@@ -29,7 +26,7 @@ import { PWNLOAN } from "pwn/core/token/PWNLOAN.sol";
  * @notice Contract managing loans in PWN protocol.
  * @dev Acts as a vault for every loan created by this contract.
  */
-contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
+contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProvider {
     using MultiToken for address;
 
     string public constant VERSION = "1.5";
@@ -48,13 +45,15 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
 
     /**
      * @notice Loan proposal specification during loan creation.
+     * @param proposer Address of a proposer that signed the proposal.
      * @param proposalContract Address of a loan proposal contract.
      * @param proposalData Encoded proposal data that is passed to the loan proposal contract.
      * @param proposalInclusionProof Inclusion proof of the proposal in the proposal contract.
      * @param signature Signature of the proposal.
      */
     struct ProposalSpec {
-        address proposalContract;
+        address proposer;
+        IPWNProduct proposalContract;
         bytes proposalData;
         bytes32[] proposalInclusionProof;
         bytes signature;
@@ -93,9 +92,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
      * @param principal Principal amount in credit asset tokens.
      * @param pastAccruedInterest Accrued interest amount in credit asset tokens before `lastUpdateTimestamp`.
      * @param unclaimedRepayment Amount of the credit asset that can be claimed by loan owner.
-     * @param interestModule Address of an interest module. It is a contract which defines the interest conditions.
-     * @param defaultModule Address of a default module. It is a contract which defines the default conditions.
-     * @param liquidationModule Address that can call liquidation for defaulted loans.
+     * @param product Product contract associated with the loan.
      */
     struct LOAN {
         address borrower;
@@ -105,9 +102,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         uint256 principal;
         uint256 pastAccruedInterest;
         uint256 unclaimedRepayment;
-        IPWNInterestModule interestModule;
-        IPWNDefaultModule defaultModule;
-        IPWNLiquidationModule liquidationModule;
+        IPWNProduct product;
     }
 
     /** Mapping of all LOAN data by loan id.*/
@@ -136,7 +131,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
     /** @notice Emitted when a loan repayment is claimed.*/
     event LOANRepaymentClaimed(uint256 indexed loanId, uint256 claimedAmount);
     /** @notice Emitted when a loan collateral is liquidated.*/
-    event LOANLiquidated(uint256 indexed loanId, address indexed liquidator, address indexed liquidationModule, uint256 liquidationAmount);
+    event LOANLiquidated(uint256 indexed loanId, address indexed liquidator, uint256 liquidationAmount);
 
 
     /*----------------------------------------------------------*|
@@ -173,6 +168,8 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
     error DefaultedOnCreation();
     /** @notice Thrown when a loan is created with zero principal.*/
     error ZeroPrincipal();
+    /** @notice Thrown when proposal acceptor and proposer are the same.*/
+    error AcceptorIsProposer(address addr);
 
 
     /*----------------------------------------------------------*|
@@ -231,20 +228,42 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         BorrowerSpec calldata borrowerSpec,
         bytes calldata extra
     ) external returns (uint256 loanId) {
+        if (msg.sender == proposalSpec.proposer) revert AcceptorIsProposer(msg.sender);
+
+        // Mint LOAN token for lender
+        loanId = loanToken.mint(address(this));
+
+        // Lock loan context to prevent reentrancy
+        _lockLoanContext(loanId);
+
+        // Check proposal signature
+        bytes32 proposalHash = hashProposal(proposalSpec.proposalContract, proposalSpec.proposalData);
+        _checkProposalSignature(
+            proposalSpec.proposer, proposalHash, proposalSpec.proposalInclusionProof, proposalSpec.signature
+        );
+
+        // Note: Both lender and borrower may utilize any proposal contract, provided mutual agreement.
+        // The acceptor commits to the proposal contract by executing this transaction,
+        // while the proposer commits by signing a proposal originating from the contract.
+
         // Accept proposal and get loan terms
-        _checkHubTag(proposalSpec.proposalContract, PWNHubTags.LOAN_PROPOSAL);
-        Terms memory loanTerms = IPWNProposal(proposalSpec.proposalContract)
-            .acceptProposal({
-                acceptor: msg.sender,
-                proposalData: proposalSpec.proposalData,
-                proposalInclusionProof: proposalSpec.proposalInclusionProof,
-                signature: proposalSpec.signature
-            });
+        Terms memory loanTerms = proposalSpec.proposalContract.acceptProposal({
+            loanId: loanId,
+            acceptor: msg.sender,
+            proposer: proposalSpec.proposer,
+            proposalData: proposalSpec.proposalData
+        });
+
+        address lender = loanTerms.isProposerLender ? proposalSpec.proposer : msg.sender;
+        address borrower = loanTerms.isProposerLender ? msg.sender : proposalSpec.proposer;
+
+        // Transfer LOAN token to lender
+        loanToken.safeTransferFrom(address(this), lender, loanId);
 
         // Check that provided proposer spec is correct
-        bytes32 proposerSpecHash = msg.sender == loanTerms.lender
-            ? getBorrowerSpecHash(borrowerSpec)
-            : getLenderSpecHash(lenderSpec);
+        bytes32 proposerSpecHash = loanTerms.isProposerLender
+            ? getLenderSpecHash(lenderSpec)
+            : getBorrowerSpecHash(borrowerSpec);
         if (proposerSpecHash != loanTerms.proposerSpecHash) {
             revert InvalidProposerSpecHash({ current: proposerSpecHash, expected: loanTerms.proposerSpecHash });
         }
@@ -254,27 +273,20 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         _checkValidAsset(loanTerms.creditAddress.ERC20(loanTerms.principal));
         _checkValidAsset(loanTerms.collateral);
 
-        // Mint LOAN token for lender
-        loanId = loanToken.mint(loanTerms.lender);
-
         // Store loan data under loan id
         LOAN storage loan = LOANs[loanId];
-        loan.borrower = loanTerms.borrower;
+        loan.product = proposalSpec.proposalContract;
+        loan.borrower = borrower;
         loan.lastUpdateTimestamp = uint40(block.timestamp);
         loan.creditAddress = loanTerms.creditAddress;
         loan.principal = loanTerms.principal;
         loan.collateral = loanTerms.collateral;
-        loan.interestModule = loanTerms.interestModule;
-        loan.defaultModule = loanTerms.defaultModule;
-        loan.liquidationModule = loanTerms.liquidationModule;
 
-        // Lock loan context to prevent reentrancy
-        _lockLoanContext(loanId);
-
+        // Emit event
         emit LOANCreated({
             loanId: loanId,
-            proposalHash: loanTerms.proposalHash,
-            proposalContract: proposalSpec.proposalContract,
+            proposalHash: proposalHash,
+            proposalContract: address(proposalSpec.proposalContract),
             terms: loanTerms,
             lenderSpec: lenderSpec,
             borrowerSpec: borrowerSpec,
@@ -284,7 +296,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         // Store lender repayment hook
         // Note: hook tag check is not required here; would fail on repayment
         if (address(lenderSpec.repaymentHook) != address(0)) {
-            lenderRepaymentHook[loanTerms.lender][loanId] = LenderRepaymentHookData({
+            lenderRepaymentHook[lender][loanId] = LenderRepaymentHookData({
                 hook: lenderSpec.repaymentHook,
                 data: lenderSpec.repaymentHookData
             });
@@ -292,36 +304,15 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
 
         // Note: !! DANGER ZONE !!
 
-        // Initialize modules
-        _initializeModule(address(loanTerms.interestModule), INTEREST_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.interestModuleProposerData);
-        _initializeModule(address(loanTerms.defaultModule), DEFAULT_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.defaultModuleProposerData);
-        _initializeModule(address(loanTerms.liquidationModule), LIQUIDATION_MODULE_INIT_HOOK_RETURN_VALUE, loanId, loanTerms.liquidationModuleProposerData);
-
         // Check that loan is not defaulted on creation
-        if (IPWNDefaultModule(loanTerms.defaultModule).isDefaulted(address(this), loanId)) {
+        if (IPWNProduct(proposalSpec.proposalContract).isDefaulted(address(this), loanId)) {
             revert DefaultedOnCreation();
         }
 
         // Settle the loan
-        _settleNewLoan(loanTerms, lenderSpec, borrowerSpec);
+        _settleNewLoan(lender, borrower, loanTerms, lenderSpec, borrowerSpec);
 
         _unlockLoanContext(loanId);
-    }
-
-    /** @dev Initialize module by checking PWN Hub tag and call initialization hook.*/
-    function _initializeModule(
-        address module,
-        bytes32 expectedReturnValue,
-        uint256 loanId,
-        bytes memory proposerData
-    ) internal {
-        // Check PWN Hub tag
-        _checkHubTag(module, PWNHubTags.MODULE);
-        // Call module initialization hook
-        bytes32 hookReturnValue = IPWNModuleInitializationHook(module).onLoanCreated(loanId, proposerData);
-        if (hookReturnValue != expectedReturnValue) {
-            revert InvalidHookReturnValue({ expected: expectedReturnValue, current: hookReturnValue });
-        }
     }
 
     /**
@@ -332,6 +323,8 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
      * @param borrowerSpec Borrower specification struct.
      */
     function _settleNewLoan(
+        address lender,
+        address borrower,
         Terms memory loanTerms,
         LenderSpec calldata lenderSpec,
         BorrowerSpec calldata borrowerSpec
@@ -340,7 +333,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         if (address(lenderSpec.createHook) != address(0)) {
             _checkHubTag(address(lenderSpec.createHook), PWNHubTags.HOOK);
             bytes32 hookReturnValue = lenderSpec.createHook.onLoanCreated(
-                loanTerms.lender,
+                lender,
                 loanTerms.creditAddress,
                 loanTerms.principal,
                 lenderSpec.createHookData
@@ -359,18 +352,18 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         // Collect fees
         if (feeAmount > 0) {
             creditHelper.amount = feeAmount;
-            _pushFrom(creditHelper, loanTerms.lender, config.feeCollector());
+            _pushFrom(creditHelper, lender, config.feeCollector());
         }
 
         // Transfer credit to borrower
         creditHelper.amount = newLoanAmount;
-        _pushFrom(creditHelper, loanTerms.lender, loanTerms.borrower);
+        _pushFrom(creditHelper, lender, borrower);
 
         // Call borrower create hook
         if (address(borrowerSpec.createHook) != address(0)) {
             _checkHubTag(address(borrowerSpec.createHook), PWNHubTags.HOOK);
             bytes32 hookReturnValue = borrowerSpec.createHook.onLoanCreated(
-                loanTerms.borrower,
+                borrower,
                 loanTerms.collateral,
                 loanTerms.creditAddress,
                 newLoanAmount,
@@ -382,7 +375,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         }
 
         // Transfer collateral to Vault
-        _pull(loanTerms.collateral, loanTerms.borrower);
+        _pull(loanTerms.collateral, borrower);
     }
 
     /**
@@ -632,11 +625,11 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
         loan.principal = 0;
         loan.lastUpdateTimestamp = uint40(block.timestamp);
 
-        IPWNLiquidationModule liquidationModule = loan.liquidationModule;
+        IPWNProduct product = loan.product;
 
         // Execute liquidation
-        _push(loan.collateral, address(liquidationModule));
-        uint256 liquidationAmount = liquidationModule.liquidate({
+        _push(loan.collateral, address(product));
+        uint256 liquidationAmount = product.liquidate({
             loanId: loanId,
             liquidator: msg.sender,
             borrower: loan.borrower,
@@ -646,14 +639,13 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
             data: data
         });
         if (liquidationAmount > 0) {
-            _settleRepayment(loanId, address(liquidationModule), loan.creditAddress, liquidationAmount);
+            _settleRepayment(loanId, address(product), loan.creditAddress, liquidationAmount);
         }
 
         // Emit liquidation event
         emit LOANLiquidated({
             loanId: loanId,
             liquidator: msg.sender,
-            liquidationModule: address(liquidationModule),
             liquidationAmount: liquidationAmount
         });
 
@@ -834,7 +826,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
     }
 
     function _tryIsDefaulted(uint256 loanId) internal view returns (bool) {
-        try LOANs[loanId].defaultModule.isDefaulted(address(this), loanId) returns (bool isDefaulted) {
+        try LOANs[loanId].product.isDefaulted(address(this), loanId) returns (bool isDefaulted) {
             return isDefaulted;
         } catch {
             return false; // If the call fails, assume the loan is not defaulted
@@ -842,7 +834,7 @@ contract PWNLoan is PWNVault, IERC5646, IPWNLoanMetadataProvider {
     }
 
     function _tryInterest(uint256 loanId) internal view returns (uint256) {
-        try LOANs[loanId].interestModule.interest(address(this), loanId) returns (uint256 interest) {
+        try LOANs[loanId].product.interest(address(this), loanId) returns (uint256 interest) {
             return interest;
         } catch {
             return 0; // If the call fails, assume no interest
