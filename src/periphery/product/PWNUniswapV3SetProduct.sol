@@ -71,7 +71,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
     bytes32 public immutable DOMAIN_SEPARATOR;
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(address[] tokenAAllowlist,address[] tokenBAllowlist,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
+        "Proposal(address[] tokenAAllowlist,address[] tokenBAllowlist,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 acceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
     );
 
     /**
@@ -81,8 +81,8 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
      * @param creditAddress Address of an asset which is lended to a borrower.
      * @param feedIntermediaryDenominations List of intermediary price feeds that will be fetched to get to the collateral asset denominator.
      * @param feedInvertFlags List of flags indicating if price feeds exist only for inverted base and quote assets.
-     * @param loanToValue Loan to value ratio with 4 decimals. E.g., 6231 == 0.6231 == 62.31%.
-     * @param interestAPR Accruing interest APR with 2 decimals.
+     * @param acceptableLoanToValue The acceptable loan-to-value ratio (LTV) with LOAN_TO_VALUE_DECIMALS decimals. For lender, it's the maxium acceptable LTV, for borrower it's the LTV they are willing to accept.
+     * @param interestAPR Accruing interest APR with APR_DECIMALS decimals.
      * @param duration Duration of a loan in seconds.
      * @param liquidationLoanToValue Liquidation loan to value ratio with LOAN_TO_VALUE_DECIMALS decimals. It is used to calculate liquidation value of a loan.
      * @param minCreditAmount Minimum amount of tokens which can be borrowed using the proposal.
@@ -103,7 +103,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
         address creditAddress;
         address[] feedIntermediaryDenominations;
         bool[] feedInvertFlags;
-        uint256 loanToValue;
+        uint256 acceptableLoanToValue;
         // Interest
         uint256 interestAPR;
         // Default
@@ -128,13 +128,14 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
      * @param collateralId Uniswap LP token ID.
      * @param tokenAIndex Index of tokenA in tokenAAllowlist.
      * @param tokenBIndex Index of tokenB in tokenBAllowlist.
+     * @param loanToValue Loan to value ratio with LOAN_TO_VALUE_DECIMALS decimals. It is used to calculate credit amount.
      */
     struct AcceptorValues {
         uint256 collateralId;
         uint256 tokenAIndex;
         uint256 tokenBIndex;
+        uint256 loanToValue;
     }
-
 
     /**
      * @notice Struct containing loan data for interest, default, and liquidation logic.
@@ -180,6 +181,8 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
     error LoanNotInitialized();
     /** @notice Thrown when the duration is less than the minimum allowed duration.*/
     error DurationTooShort();
+    /** @notice Thrown when the loan to value is outside of acceptable limits for the proposal.*/
+    error InvalidLoanToValue();
 
 
     /*----------------------------------------------------------*|
@@ -227,7 +230,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
      * @param token0Denominator Flag indicating if token0 should be used as LP value denominator.
      * @param feedIntermediaryDenominations List of intermediary price assets that will be used to fetch prices to get to the correct asset denominator.
      * @param feedInvertFlags List of flags indicating if price feeds exist only for inverted base and quote assets.
-     * @param loanToValue Loan to value ratio with 4 decimals. E.g., 6231 == 0.6231 == 62.31%.
+     * @param loanToValue Loan to value ratio with LOAN_TO_VALUE_DECIMALS decimals.
      * @return Amount of credit.
      */
     function getCreditAmount(
@@ -298,8 +301,24 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
         }
 
         // Check liquidation ltv
-        if (proposal.liquidationLoanToValue == 0 || proposal.liquidationLoanToValue > 10 ** LOAN_TO_VALUE_DECIMALS) {
+        if (proposal.liquidationLoanToValue == 0) {
+            // If LLTV is zero, it is invalid
             revert InvalidLiquidationLoanToValue();
+        } else if (proposal.liquidationLoanToValue > 10 ** LOAN_TO_VALUE_DECIMALS) {
+            // If LLTV is above 1.0, it is invalid
+            revert InvalidLiquidationLoanToValue();
+        } else if (proposal.liquidationLoanToValue < proposal.acceptableLoanToValue) {
+            // If LLTV is less than max acceptable LTV, it is invalid
+            revert InvalidLiquidationLoanToValue();
+        }
+
+        // Check if LTV is within acceptable limits
+        if (proposal.isProposerLender && acceptorValues.loanToValue > proposal.acceptableLoanToValue) {
+            // For lender, check if the LTV is below the maximum acceptable LTV
+            revert InvalidLoanToValue();
+        } else if (!proposal.isProposerLender && acceptorValues.loanToValue != proposal.acceptableLoanToValue) {
+            // For borrower, check if the LTV is equal to the acceptable LTV
+            revert InvalidLoanToValue();
         }
 
         // Check duration
@@ -316,7 +335,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
             token0Denominator,
             proposal.feedIntermediaryDenominations,
             proposal.feedInvertFlags,
-            proposal.loanToValue
+            acceptorValues.loanToValue
         );
 
         // Check sufficient credit amount
@@ -518,7 +537,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
         address creditAddress;
         bytes32 feedIntermediaryDenominationsHash;
         bytes32 feedInvertFlagsHash;
-        uint256 loanToValue;
+        uint256 acceptableLoanToValue;
         uint256 interestAPR;
         uint256 duration;
         uint256 minCreditAmount;
@@ -539,7 +558,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct {
             creditAddress: proposal.creditAddress,
             feedIntermediaryDenominationsHash: keccak256(abi.encodePacked(proposal.feedIntermediaryDenominations)),
             feedInvertFlagsHash: keccak256(abi.encodePacked(proposal.feedInvertFlags)),
-            loanToValue: proposal.loanToValue,
+            acceptableLoanToValue: proposal.acceptableLoanToValue,
             interestAPR: proposal.interestAPR,
             duration: proposal.duration,
             minCreditAmount: proposal.minCreditAmount,
