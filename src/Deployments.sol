@@ -16,18 +16,8 @@ import { PWNLOAN } from "pwn/core/token/PWNLOAN.sol";
 import { IChainlinkFeedRegistryLike } from "pwn/periphery/interfaces/IChainlinkFeedRegistryLike.sol";
 import { IChainlinkAggregatorLike } from "pwn/periphery/interfaces/IChainlinkAggregatorLike.sol";
 
-import { PWNDurationDefaultModule } from "pwn/periphery/loan/module/default/PWNDurationDefaultModule.sol";
-import { PWNChainlinkValueDefaultModule } from "pwn/periphery/loan/module/default/PWNChainlinkValueDefaultModule.sol";
-import { PWNStableInterestModule } from "pwn/periphery/loan/module/interest/PWNStableInterestModule.sol";
-import { PWNClaimLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNClaimLiquidationModule.sol";
-import { PWNOpenLiquidationModule } from "pwn/periphery/loan/module/liquidation/PWNOpenLiquidationModule.sol";
-
-import { PWNSimpleProposal } from "pwn/periphery/proposal/PWNSimpleProposal.sol";
-import { PWNStableInterestProposal } from "pwn/periphery/proposal/PWNStableInterestProposal.sol";
-import { PWNUniswapV3LPIndividualProposal } from "pwn/periphery/proposal/PWNUniswapV3LPIndividualProposal.sol";
-import { PWNUniswapV3LPSetProposal } from "pwn/periphery/proposal/PWNUniswapV3LPSetProposal.sol";
-import { PWNRevokedNonce } from "pwn/periphery/proposal/auxiliary/PWNRevokedNonce.sol";
-import { PWNUtilizedCredit } from "pwn/periphery/proposal/auxiliary/PWNUtilizedCredit.sol";
+import { PWNRevokedNonce } from "pwn/periphery/auxiliary/PWNRevokedNonce.sol";
+import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol";
 
 
 interface IPWNDeployer {
@@ -52,21 +42,12 @@ abstract contract Deployments is CommonBase {
     struct Deployment {
         MultiTokenCategoryRegistry categoryRegistry;
         IChainlinkFeedRegistryLike chainlinkFeedRegistry;
-        PWNChainlinkValueDefaultModule chainlinkValueDefaultModule;
-        PWNClaimLiquidationModule claimLiquidationModule;
         PWNConfig config;
         PWNConfig configSingleton;
-        PWNDurationDefaultModule durationDefaultModule;
-        PWNOpenLiquidationModule openLiquidationModule;
-        PWNStableInterestProposal stableInterestProposal;
         PWNHub hub;
         PWNLoan loan;
         PWNLOAN loanToken;
         PWNRevokedNonce revokedNonce;
-        PWNSimpleProposal simpleProposal;
-        PWNStableInterestModule stableInterestModule;
-        PWNUniswapV3LPIndividualProposal uniswapV3LPIndividualProposal;
-        PWNUniswapV3LPSetProposal uniswapV3LPSetProposal;
         PWNUtilizedCredit utilizedCredit;
     }
 
