@@ -6,7 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import {
     PWNDirectLenderRepaymentHook,
     IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE
-} from "pwn/periphery/loan/hook/lender/PWNDirectLenderRepaymentHook.sol";
+} from "pwn/periphery/hook/lender/PWNDirectLenderRepaymentHook.sol";
 
 
 abstract contract PWNDirectLenderRepaymentHookTest is Test {

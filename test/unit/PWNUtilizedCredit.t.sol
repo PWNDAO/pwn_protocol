@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import { Test } from "forge-std/Test.sol";
 
-import { PWNUtilizedCredit } from "pwn/periphery/proposal/auxiliary/PWNUtilizedCredit.sol";
+import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol";
 
 
 abstract contract PWNUtilizedCreditTest is Test {

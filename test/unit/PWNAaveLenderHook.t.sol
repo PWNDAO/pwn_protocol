@@ -8,7 +8,7 @@ import {
     IPWNLenderCreateHook, LENDER_CREATE_HOOK_RETURN_VALUE,
     IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE,
     IAaveLike, PWNHub, PWNHubTags
-} from "pwn/periphery/loan/hook/lender/PWNAaveLenderHook.sol";
+} from "pwn/periphery/hook/lender/PWNAaveLenderHook.sol";
 
 
 abstract contract PWNAaveLenderHookTest is Test {

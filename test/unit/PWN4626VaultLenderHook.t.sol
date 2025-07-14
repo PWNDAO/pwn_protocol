@@ -8,7 +8,7 @@ import {
     IPWNLenderCreateHook, LENDER_CREATE_HOOK_RETURN_VALUE,
     IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE,
     IERC4626Like, PWNHub, PWNHubTags
-} from "pwn/periphery/loan/hook/lender/PWN4626VaultLenderHook.sol";
+} from "pwn/periphery/hook/lender/PWN4626VaultLenderHook.sol";
 
 
 abstract contract PWN4626VaultLenderHookTest is Test {
