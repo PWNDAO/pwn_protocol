@@ -59,7 +59,7 @@ contract PWNStableProduct is IPWNProduct {
     bytes32 public immutable DOMAIN_SEPARATOR;
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,address proposer,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
+        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
     );
 
     /**
@@ -79,7 +79,6 @@ contract PWNStableProduct is IPWNProduct {
      * @param nonceSpace Nonce space for replay protection.
      * @param nonce Nonce for replay protection.
      * @param expiration Expiration timestamp of the proposal.
-     * @param proposer The address of the proposal creator.
      * @param proposerSpecHash Hash of proposer-specific data.
      * @param isProposerLender Boolean indicating if the proposer is the lender.
      * @param loanContract The address of the loan contract to be used.
@@ -106,7 +105,6 @@ contract PWNStableProduct is IPWNProduct {
         uint256 nonce;
         uint256 expiration;
         // General proposal
-        address proposer;
         bytes32 proposerSpecHash;
         bool isProposerLender;
         address loanContract;
@@ -121,7 +119,6 @@ contract PWNStableProduct is IPWNProduct {
         uint256 collateralAmount;
         uint256 creditAmount;
     }
-
 
     /**
      * @notice Struct containing loan data for interest, default, and liquidation logic.
@@ -494,7 +491,6 @@ contract PWNStableProduct is IPWNProduct {
         uint256 nonceSpace;
         uint256 nonce;
         uint256 expiration;
-        address proposer;
         bytes32 proposerSpecHash;
         bool isProposerLender;
         address loanContract;
@@ -516,7 +512,6 @@ contract PWNStableProduct is IPWNProduct {
             nonceSpace: proposal.nonceSpace,
             nonce: proposal.nonce,
             expiration: proposal.expiration,
-            proposer: proposal.proposer,
             proposerSpecHash: proposal.proposerSpecHash,
             isProposerLender: proposal.isProposerLender,
             loanContract: proposal.loanContract
