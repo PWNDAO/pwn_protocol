@@ -44,7 +44,7 @@ contract PWNProposalManager {
     /** @notice Emitted when a proposal is marked as unacceptable.*/
     event ProposalUnacceptable(bytes32 indexed proposalHash);
     /** @notice Emitted when a multiproposal is marked as acceptable.*/
-    event MultiproposalAcceptable(bytes32 indexed multiproposalHash, address indexed proposer);
+    event MultiproposalAcceptable(bytes32 indexed multiproposalHash, address indexed proposer, bytes32 multiproposalMerkleRoot);
     /** @notice Emitted when a multiproposal is marked as unacceptable.*/
     event MultiproposalUnacceptable(bytes32 indexed multiproposalHash);
 
@@ -57,7 +57,7 @@ contract PWNProposalManager {
      * @notice Mark a proposal as acceptable for the sender.
      * @param proposalModule The proposal module contract.
      * @param proposalData Raw proposal data.
-     * @return proposalHash Hash of the proposal.
+     * @return proposalHash Hash of the proposal marked as acceptable.
      */
     function makeProposalAcceptable(
         IPWNProposalModule proposalModule,
@@ -79,11 +79,13 @@ contract PWNProposalManager {
 
     /**
      * @notice Mark a multiproposal as acceptable for the sender.
-     * @param multiproposalHash Hash of the multiproposal to mark as acceptable.
+     * @param multiproposal The multiproposal struct to mark as acceptable.
+     * @return multiproposalHash Hash of the multiproposal marked as acceptable.
      */
-    function makeMultiproposalAcceptable(bytes32 multiproposalHash) external {
+    function makeMultiproposalAcceptable(Multiproposal memory multiproposal) external returns (bytes32 multiproposalHash) {
+        multiproposalHash = hashMultiproposal(multiproposal);
         isMultiproposalAcceptable[msg.sender][multiproposalHash] = true;
-        emit MultiproposalAcceptable(multiproposalHash, msg.sender);
+        emit MultiproposalAcceptable(multiproposalHash, msg.sender, multiproposal.multiproposalMerkleRoot);
     }
 
     /**
@@ -91,7 +93,7 @@ contract PWNProposalManager {
      * @param multiproposalHash Hash of the multiproposal to mark as unacceptable.
      */
     function makeMultiproposalUnacceptable(bytes32 multiproposalHash) external {
-        isProposalAcceptable[msg.sender][multiproposalHash] = false;
+        isMultiproposalAcceptable[msg.sender][multiproposalHash] = false;
         emit MultiproposalUnacceptable(multiproposalHash);
     }
 
@@ -99,19 +101,6 @@ contract PWNProposalManager {
     /*----------------------------------------------------------*|
     |*  # PROPOSAL HASHING                                      *|
     |*----------------------------------------------------------*/
-
-    /**
-     * @notice Compute the EIP-712 hash for a multiproposal struct.
-     * @param multiproposal The multiproposal struct to hash.
-     * @return Hash of the multiproposal.
-     */
-    function hashMultiproposal(Multiproposal memory multiproposal) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(
-            hex"1901", MULTIPROPOSAL_DOMAIN_SEPARATOR, keccak256(abi.encodePacked(
-                MULTIPROPOSAL_TYPEHASH, abi.encode(multiproposal)
-            ))
-        ));
-    }
 
     /**
      * @notice Compute the EIP-712 hash for a proposal using its module and data.
@@ -134,6 +123,19 @@ contract PWNProposalManager {
                 address(proposalModule)
             )),
             proposalModule.hashProposalTypedData(proposalData)
+        ));
+    }
+
+    /**
+     * @notice Compute the EIP-712 hash for a multiproposal struct.
+     * @param multiproposal The multiproposal struct to hash.
+     * @return Hash of the multiproposal.
+     */
+    function hashMultiproposal(Multiproposal memory multiproposal) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(
+            hex"1901", MULTIPROPOSAL_DOMAIN_SEPARATOR, keccak256(abi.encodePacked(
+                MULTIPROPOSAL_TYPEHASH, abi.encode(multiproposal)
+            ))
         ));
     }
 
