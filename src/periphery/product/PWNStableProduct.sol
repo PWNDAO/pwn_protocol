@@ -21,7 +21,6 @@ import { PWNRevokedNonce } from "pwn/periphery/auxiliary/PWNRevokedNonce.sol";
 import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol";
 
 
-
 contract PWNStableProduct is IPWNProduct {
     using MultiToken for address;
     using MultiToken for MultiToken.Asset;
@@ -59,7 +58,7 @@ contract PWNStableProduct is IPWNProduct {
     bytes32 public immutable DOMAIN_SEPARATOR;
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 maxAcceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
+        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 acceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
     );
 
     /**
@@ -69,7 +68,7 @@ contract PWNStableProduct is IPWNProduct {
      * @param creditAddress The address of the credit asset (loan currency).
      * @param feedIntermediaryDenominations Array of intermediary denominations for price feed routing.
      * @param feedInvertFlags Array of flags indicating if the price feed should be inverted for each denomination.
-     * @param maxAcceptableLoanToValue The maximum acceptable loan-to-value ratio (LTV), expressed in basis points (1e4 = 100%).
+     * @param acceptableLoanToValue The acceptable loan-to-value ratio (LTV), expressed in basis points (1e4 = 100%). For lender, it's the maxium acceptable LTV, for borrower it's the LTV they are willing to accept.
      * @param interestAPR The annual percentage rate (APR) for the loan interest, expressed in basis points (1e4 = 100%).
      * @param duration The duration of the loan in seconds, after which it is considered defaulted if not repaid.
      * @param liquidationLoanToValue The liquidation loan-to-value threshold, expressed in basis points (1e4 = 100%).
@@ -90,7 +89,7 @@ contract PWNStableProduct is IPWNProduct {
         address creditAddress;
         address[] feedIntermediaryDenominations;
         bool[] feedInvertFlags;
-        uint256 maxAcceptableLoanToValue;
+        uint256 acceptableLoanToValue;
         // Interest
         uint256 interestAPR;
         // Default
@@ -112,12 +111,12 @@ contract PWNStableProduct is IPWNProduct {
 
     /**
      * @notice Construct defining values provided by an acceptor.
-     * @param collateralAmount The amount of collateral to be provided by the acceptor.
      * @param creditAmount Amount of credit to be borrowed.
+     * @param loanToValue Loan-to-value ratio, scaled by LOAN_TO_VALUE_DECIMALS. The collateral amount required for the loan is computed based on this ratio.
      */
     struct AcceptorValues {
-        uint256 collateralAmount;
         uint256 creditAmount;
+        uint256 loanToValue;
     }
 
     /**
@@ -160,10 +159,10 @@ contract PWNStableProduct is IPWNProduct {
     error LoanNotInitialized();
     /** @notice Thrown when the duration is less than the minimum allowed duration.*/
     error DurationTooShort();
-    /** @notice Thrown when collateral amount is zero.*/
-    error CollateralAmountZero();
-    /** @notice Thrown when loan to value ratio is too high.*/
-    error LoanToValueTooHigh(uint256 current, uint256 limit);
+    /** @notice Thrown when loan to value is zero.*/
+    error LoanToValueZero();
+    /** @notice Thrown when the loan to value is outside of acceptable limits for the proposal.*/
+    error InvalidLoanToValue();
 
 
     /*----------------------------------------------------------*|
@@ -201,32 +200,32 @@ contract PWNStableProduct is IPWNProduct {
     |*----------------------------------------------------------*/
 
     /**
-     * @notice Calculates the loan-to-value (LTV) ratio based on the provided credit and collateral information.
-     * @dev Uses Chainlink price feeds to convert the credit amount to the collateral denomination, then computes the LTV.
+     * @notice Calculates the required collateral amount for a given position.
+     * @dev This function determines how much collateral is needed based on the product's parameters.
      * @param creditAddress The address of the credit token.
      * @param creditAmount The amount of credit to be used in the calculation.
      * @param collateralAddress The address of the collateral token.
-     * @param collateralAmount The amount of collateral provided.
      * @param feedIntermediaryDenominations An array of intermediary token addresses used for multi-hop price feed conversions.
      * @param feedInvertFlags An array of boolean flags indicating if each corresponding price feed should be inverted.
-     * @return The computed loan-to-value ratio, with LOAN_TO_VALUE_DECIMALS decimal places.
+     * @param loanToValue The loan-to-value ratio, scaled by LOAN_TO_VALUE_DECIMALS. This is the ratio of the loan amount to the collateral value.
+     * @return The amount of collateral required.
      */
-    function getLoanToValue(
+    function getCollateralAmount(
         address creditAddress,
         uint256 creditAmount,
         address collateralAddress,
-        uint256 collateralAmount,
         address[] memory feedIntermediaryDenominations,
-        bool[] memory feedInvertFlags
+        bool[] memory feedInvertFlags,
+        uint256 loanToValue
     ) public view returns (uint256) {
-        if (collateralAmount == 0) revert CollateralAmountZero();
+        if (loanToValue == 0) revert LoanToValueZero();
         return _chainlink.convertDenomination({
             amount: creditAmount,
             oldDenomination: creditAddress,
             newDenomination: collateralAddress,
             feedIntermediaryDenominations: feedIntermediaryDenominations,
             feedInvertFlags: feedInvertFlags
-        }).mulDiv(10 ** LOAN_TO_VALUE_DECIMALS, collateralAmount);
+        }).mulDiv(10 ** LOAN_TO_VALUE_DECIMALS, loanToValue);
     }
 
 
@@ -272,7 +271,7 @@ contract PWNStableProduct is IPWNProduct {
         } else if (proposal.liquidationLoanToValue > 10 ** LOAN_TO_VALUE_DECIMALS) {
             // If LLTV is above 1.0, it is invalid
             revert InvalidLiquidationLoanToValue();
-        } else if (proposal.liquidationLoanToValue <= proposal.maxAcceptableLoanToValue) {
+        } else if (proposal.liquidationLoanToValue < proposal.acceptableLoanToValue) {
             // If LLTV is less than max acceptable LTV, it is invalid
             revert InvalidLiquidationLoanToValue();
         }
@@ -292,19 +291,24 @@ contract PWNStableProduct is IPWNProduct {
             revert InsufficientCreditAmount({ current: acceptorValues.creditAmount, limit: proposal.minCreditAmount });
         }
 
-        uint256 ltv = getLoanToValue(
+        // Check if LTV is within acceptable limits
+        if (proposal.isProposerLender && acceptorValues.loanToValue > proposal.acceptableLoanToValue) {
+            // For lender, check if the LTV is below the maximum acceptable LTV
+            revert InvalidLoanToValue();
+        } else if (!proposal.isProposerLender && acceptorValues.loanToValue != proposal.acceptableLoanToValue) {
+            // For borrower, check if the LTV is equal to the acceptable LTV
+            revert InvalidLoanToValue();
+        }
+
+        // Compute collateral amount required for the loan
+        uint256 collateralAmount = getCollateralAmount(
             proposal.creditAddress,
             acceptorValues.creditAmount,
             proposal.collateralAddress,
-            acceptorValues.collateralAmount,
             proposal.feedIntermediaryDenominations,
-            proposal.feedInvertFlags
+            proposal.feedInvertFlags,
+            acceptorValues.loanToValue
         );
-
-        // Check if LTV is within acceptable limits
-        if (ltv > proposal.maxAcceptableLoanToValue) {
-            revert LoanToValueTooHigh(ltv, proposal.maxAcceptableLoanToValue);
-        }
 
         if (proposal.availableCreditLimit == 0) {
             // Revoke nonce if credit limit is 0, proposal can be accepted only once
@@ -331,7 +335,7 @@ contract PWNStableProduct is IPWNProduct {
         return Terms({
             isProposerLender: proposal.isProposerLender,
             proposerSpecHash: proposal.proposerSpecHash,
-            collateral: proposal.collateralAddress.ERC20(acceptorValues.collateralAmount),
+            collateral: proposal.collateralAddress.ERC20(collateralAmount),
             creditAddress: proposal.creditAddress,
             principal: acceptorValues.creditAmount
         });
@@ -379,16 +383,16 @@ contract PWNStableProduct is IPWNProduct {
         (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations)
             = decodeChainlinkPriceFeedData(data.feedData);
 
-        uint256 currentLtv = getLoanToValue(
+        uint256 minCollateralAmount = getCollateralAmount(
             loan.creditAddress,
             PWNLoan(loanContract).getLOANDebt(loanId),
             loan.collateral.assetAddress,
-            loan.collateral.amount,
             feedIntermediaryDenominations,
-            feedInvertFlags
+            feedInvertFlags,
+            data.lltv
         );
 
-        return currentLtv >= data.lltv;
+        return loan.collateral.amount <= minCollateralAmount;
     }
 
 
@@ -481,7 +485,7 @@ contract PWNStableProduct is IPWNProduct {
         address creditAddress;
         bytes32 feedIntermediaryDenominationsHash;
         bytes32 feedInvertFlagsHash;
-        uint256 maxAcceptableLoanToValue;
+        uint256 acceptableLoanToValue;
         uint256 interestAPR;
         uint256 duration;
         uint256 liquidationLoanToValue;
@@ -502,7 +506,7 @@ contract PWNStableProduct is IPWNProduct {
             creditAddress: proposal.creditAddress,
             feedIntermediaryDenominationsHash: keccak256(abi.encodePacked(proposal.feedIntermediaryDenominations)),
             feedInvertFlagsHash: keccak256(abi.encodePacked(proposal.feedInvertFlags)),
-            maxAcceptableLoanToValue: proposal.maxAcceptableLoanToValue,
+            acceptableLoanToValue: proposal.acceptableLoanToValue,
             interestAPR: proposal.interestAPR,
             duration: proposal.duration,
             liquidationLoanToValue: proposal.liquidationLoanToValue,
