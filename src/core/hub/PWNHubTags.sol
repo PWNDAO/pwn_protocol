@@ -12,8 +12,6 @@ library PWNHubTags {
     /// @dev Address can revoke nonces on other addresses behalf.
     bytes32 internal constant NONCE_MANAGER = keccak256("PWN_NONCE_MANAGER");
 
-    /// @dev Address can be used as a loan module.
-    bytes32 internal constant MODULE = keccak256("PWN_MODULE");
     /// @dev Address can be used as a loan hook.
     bytes32 internal constant HOOK = keccak256("PWN_HOOK");
 
