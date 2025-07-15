@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
+import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 import { Math } from "openzeppelin/utils/math/Math.sol";
 import { SafeCast } from "openzeppelin/utils/math/SafeCast.sol";
 
@@ -31,7 +32,7 @@ import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol
  * Handles price and duration-based defaults and liquidation processes.
  * In case of liquidation, any value surplus after debt repayment is returned to the borrower.
  */
-contract PWNUniswapV3IndividualProduct is IPWNProduct {
+contract PWNUniswapV3IndividualProduct is IPWNProduct, IERC721Receiver {
     using MultiToken for address;
     using MultiToken for MultiToken.Asset;
     using Math for uint256;
@@ -492,6 +493,29 @@ contract PWNUniswapV3IndividualProduct is IPWNProduct {
      */
     function decodeProposalData(bytes memory proposalData) public pure returns (Proposal memory, AcceptorValues memory) {
         return abi.decode(proposalData, (Proposal, AcceptorValues));
+    }
+
+
+    /*----------------------------------------------------------*|
+    |*  # ERC721 RECEIVED HOOK                                  *|
+    |*----------------------------------------------------------*/
+
+    /**
+     * @dev Whenever an {IERC721} `tokenId` token is transferred to this contract via {IERC721-safeTransferFrom}
+     * by `operator` from `from`, this function is called.
+     *
+     * It must return its Solidity selector to confirm the token transfer.
+     * If any other value is returned or the interface is not implemented by the recipient, the transfer will be reverted.
+     *
+     * @return `IERC721Receiver.onERC721Received.selector` if transfer is allowed
+     */
+    function onERC721Received(
+        address /* operator */,
+        address /*from*/,
+        uint256 /*tokenId*/,
+        bytes calldata /*data*/
+    ) override external pure returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
     }
 
 
