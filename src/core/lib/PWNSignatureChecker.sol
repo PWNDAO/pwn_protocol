@@ -14,23 +14,17 @@ library PWNSignatureChecker {
 
     string internal constant VERSION = "1.0";
 
-    /**
-     * @dev Thrown when signature length is not 64 nor 65 bytes.
-     */
+    /** @dev Thrown when signature length is not 64 nor 65 bytes.*/
     error InvalidSignatureLength(uint256 length);
-
-    /**
-     * @dev Thrown when signature is invalid.
-     */
+    /** @dev Thrown when signature is invalid.*/
     error InvalidSignature(address signer, bytes32 digest);
 
     /**
      * @dev Function will try to recover a signer of a given signature and check if is the same as given signer address.
-     *      For a contract account signer address, function will check signature validity by calling `isValidSignature` function defined by EIP-1271.
+     * For a contract account signer address, function will check signature validity by calling `isValidSignature` function defined by EIP-1271.
      * @param signer Address that should be a `hash` signer or a signature validator, in case of a contract account.
      * @param hash Hash of a signed message that should validated.
-     * @param signature Signature of a signed `hash`. Could be empty for a contract account signature validation.
-     *                  Signature can be standard (65 bytes) or compact (64 bytes) defined by EIP-2098.
+     * @param signature Signature of a signed `hash`. Could be empty for a contract account signature validation. Signature can be standard (65 bytes) or compact (64 bytes) defined by EIP-2098.
      * @return True if a signature is valid.
      */
     function isValidSignatureNow(
