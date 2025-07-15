@@ -15,20 +15,6 @@ import { LoanTerms } from "pwn/core/loan/LoanTerms.sol";
  * lending, enabling users to interact with loan offers and requests in a trustless manner.
  */
 interface IPWNProposalModule {
-    /**
-     * @notice Accept a loan proposal and return the agreed loan terms.
-     * @param loanId Unique identifier for the loan created from the proposal.
-     * @param acceptor Address accepting the proposal.
-     * @param proposer Address of the proposer who created the proposal.
-     * @param proposalData Encoded proposal data.
-     * @return loanTerms LoanTerms struct containing the agreed loan parameters.
-     */
-    function acceptProposal(
-        uint256 loanId,
-        address acceptor,
-        address proposer,
-        bytes calldata proposalData
-    ) external returns (LoanTerms memory loanTerms);
 
     /**
      * @notice Returns the name and version of the proposal module.
@@ -44,4 +30,20 @@ interface IPWNProposalModule {
      * @return The hash of the proposal data.
      */
     function hashProposalTypedData(bytes calldata proposalData) external view returns (bytes32);
+
+    /**
+     * @notice Accept a loan proposal and return the agreed loan terms.
+     * @param loanId Unique identifier for the loan created from the proposal.
+     * @param acceptor Address accepting the proposal.
+     * @param proposer Address of the proposer who created the proposal.
+     * @param proposalData Encoded proposal data.
+     * @return loanTerms LoanTerms struct containing the agreed loan parameters.
+     */
+    function acceptProposal(
+        uint256 loanId,
+        address acceptor,
+        address proposer,
+        bytes calldata proposalData
+    ) external returns (LoanTerms memory loanTerms);
+
 }
