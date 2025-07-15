@@ -46,14 +46,14 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     /**
      * @notice Loan proposal specification during loan creation.
      * @param proposer Address of a proposer that signed the proposal.
-     * @param proposalContract Address of a loan proposal contract.
+     * @param product Address of a product contract.
      * @param proposalData Encoded proposal data that is passed to the loan proposal contract.
      * @param proposalInclusionProof Inclusion proof of the proposal in the proposal contract.
      * @param signature Signature of the proposal.
      */
     struct ProposalSpec {
         address proposer;
-        IPWNProduct proposalContract;
+        IPWNProduct product;
         bytes proposalData;
         bytes32[] proposalInclusionProof;
         bytes signature;
@@ -125,7 +125,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     |*----------------------------------------------------------*/
 
     /** @notice Emitted when a new loan in created.*/
-    event LOANCreated(uint256 indexed loanId, bytes32 indexed proposalHash, address indexed proposalContract, Terms terms, LenderSpec lenderSpec, BorrowerSpec borrowerSpec, bytes extra);
+    event LOANCreated(uint256 indexed loanId, bytes32 indexed proposalHash, address indexed product, Terms terms, LenderSpec lenderSpec, BorrowerSpec borrowerSpec, bytes extra);
     /** @notice Emitted when a loan repayment is made.*/
     event LOANRepaid(uint256 indexed loanId, uint256 repaymentAmount, uint256 indexed newPrincipal);
     /** @notice Emitted when a loan repayment is claimed.*/
@@ -237,7 +237,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         _lockLoanContext(loanId);
 
         // Check proposal signature
-        bytes32 proposalHash = hashProposal(proposalSpec.proposalContract, proposalSpec.proposalData);
+        bytes32 proposalHash = hashProposal(proposalSpec.product, proposalSpec.proposalData);
         _checkProposalSignature(
             proposalSpec.proposer, proposalHash, proposalSpec.proposalInclusionProof, proposalSpec.signature
         );
@@ -247,7 +247,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         // while the proposer commits by signing a proposal originating from the contract.
 
         // Accept proposal and get loan terms
-        Terms memory loanTerms = proposalSpec.proposalContract.acceptProposal({
+        Terms memory loanTerms = proposalSpec.product.acceptProposal({
             loanId: loanId,
             acceptor: msg.sender,
             proposer: proposalSpec.proposer,
@@ -275,7 +275,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
 
         // Store loan data under loan id
         LOAN storage loan = LOANs[loanId];
-        loan.product = proposalSpec.proposalContract;
+        loan.product = proposalSpec.product;
         loan.borrower = borrower;
         loan.lastUpdateTimestamp = uint40(block.timestamp);
         loan.creditAddress = loanTerms.creditAddress;
@@ -286,7 +286,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         emit LOANCreated({
             loanId: loanId,
             proposalHash: proposalHash,
-            proposalContract: address(proposalSpec.proposalContract),
+            product: address(proposalSpec.product),
             terms: loanTerms,
             lenderSpec: lenderSpec,
             borrowerSpec: borrowerSpec,
@@ -302,10 +302,8 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
             });
         }
 
-        // Note: !! DANGER ZONE !!
-
         // Check that loan is not defaulted on creation
-        if (IPWNProduct(proposalSpec.proposalContract).isDefaulted(address(this), loanId)) {
+        if (proposalSpec.product.isDefaulted(address(this), loanId)) {
             revert DefaultedOnCreation();
         }
 
@@ -318,6 +316,8 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     /**
      * @notice Transfer collateral to Vault and credit to borrower.
      * @dev The function assumes a prior token approval to a contract address.
+     * @param lender Address of a lender.
+     * @param borrower Address of a borrower.
      * @param loanTerms Loan terms struct.
      * @param lenderSpec Lender specification struct.
      * @param borrowerSpec Borrower specification struct.
