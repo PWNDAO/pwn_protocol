@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import {
-    PWNStableProduct,
+    PWNFixedProduct,
     PWNLoan,
     Terms,
     PWNHub,
@@ -16,14 +16,14 @@ import {
     Chainlink,
     MultiToken,
     decodeChainlinkPriceFeedData
-} from "pwn/periphery/product/PWNStableProduct.sol";
+} from "pwn/periphery/product/PWNFixedProduct.sol";
 
-import { PWNStableProductHarness } from "test/harness/PWNStableProductHarness.sol";
+import { PWNFixedProductHarness } from "test/harness/PWNFixedProductHarness.sol";
 import { ChainlinkDenominations } from "test/helper/ChainlinkDenominations.sol";
 
 using MultiToken for address;
 
-abstract contract PWNStableProductTest is Test {
+abstract contract PWNFixedProductTest is Test {
 
     PWNHub hub = PWNHub(makeAddr("hub"));
     PWNRevokedNonce revokedNonce = PWNRevokedNonce(makeAddr("revokedNonce"));
@@ -43,14 +43,14 @@ abstract contract PWNStableProductTest is Test {
     uint256 loanId = 42;
     PWNLoan.LOAN loan;
 
-    PWNStableProductHarness product;
-    PWNStableProduct.Proposal proposal;
-    PWNStableProduct.AcceptorValues acceptorValues;
+    PWNFixedProductHarness product;
+    PWNFixedProduct.Proposal proposal;
+    PWNFixedProduct.AcceptorValues acceptorValues;
 
     function setUp() public virtual {
-        product = new PWNStableProductHarness(hub, revokedNonce, utilizedCredit, feedRegistry, IChainlinkAggregatorLike(address(0)), weth);
+        product = new PWNFixedProductHarness(hub, revokedNonce, utilizedCredit, feedRegistry, IChainlinkAggregatorLike(address(0)), weth);
 
-        proposal = PWNStableProduct.Proposal({
+        proposal = PWNFixedProduct.Proposal({
             collateralAddress: token,
             creditAddress: token,
             feedIntermediaryDenominations: new address[](0),
@@ -71,7 +71,7 @@ abstract contract PWNStableProductTest is Test {
         });
         proposal.feedInvertFlags[0] = false;
 
-        acceptorValues = PWNStableProduct.AcceptorValues({
+        acceptorValues = PWNFixedProduct.AcceptorValues({
             creditAmount: 10 ether,
             loanToValue: 5000
         });
@@ -105,7 +105,7 @@ abstract contract PWNStableProductTest is Test {
         _mockLOANDebt(loanId, 10 ether);
     }
 
-    function _hashProposalTypedData(PWNStableProduct.Proposal memory _proposal) internal view returns (bytes32) {
+    function _hashProposalTypedData(PWNFixedProduct.Proposal memory _proposal) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(
             keccak256("Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 acceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"),
             product.exposed_erc712EncodeProposal(_proposal)
@@ -175,7 +175,7 @@ abstract contract PWNStableProductTest is Test {
 |*  # GET COLLATERAL AMOUNT                                 *|
 |*----------------------------------------------------------*/
 
-contract PWNStableProductTest_getCollateralAmount_Test is PWNStableProductTest {
+contract PWNFixedProductTest_getCollateralAmount_Test is PWNFixedProductTest {
 
     address collAddr = makeAddr("collAddr");
     address credAddr = makeAddr("credAddr");
@@ -193,7 +193,7 @@ contract PWNStableProductTest_getCollateralAmount_Test is PWNStableProductTest {
 
 
     function test_shouldFail_whenLTVIsZero() external {
-        vm.expectRevert(abi.encodeWithSelector(PWNStableProduct.LoanToValueZero.selector));
+        vm.expectRevert(abi.encodeWithSelector(PWNFixedProduct.LoanToValueZero.selector));
         product.getCollateralAmount(credAddr, credAmount, collAddr, fid, fif, 0);
     }
 
@@ -232,11 +232,11 @@ contract PWNStableProductTest_getCollateralAmount_Test is PWNStableProductTest {
 |*  # PROPOSAL MODULE                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNStableProductTest_ProposalModule_Test is PWNStableProductTest {
+contract PWNFixedProductTest_ProposalModule_Test is PWNFixedProductTest {
 
     function test_shouldReturnNameAndVersion() external {
         (string memory name, string memory version) = product.nameAndVersion();
-        assertEq(name, "PWN Stable Product");
+        assertEq(name, "PWN Fixed Product");
         assertEq(version, "1.5");
     }
 
@@ -255,13 +255,13 @@ contract PWNStableProductTest_ProposalModule_Test is PWNStableProductTest {
 |*  # ACCEPT PROPOSAL                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
+contract PWNFixedProductTest_acceptProposal_Test is PWNFixedProductTest {
 
     function testFuzz_shouldFail_whenCallerIsNotProposedLoanContract(address caller) external {
         vm.assume(caller != loanContract);
 
         vm.expectRevert(
-            abi.encodeWithSelector(PWNStableProduct.CallerNotLoanContract.selector, caller, loanContract)
+            abi.encodeWithSelector(PWNFixedProduct.CallerNotLoanContract.selector, caller, loanContract)
         );
         vm.prank(caller);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
@@ -275,7 +275,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(PWNStableProduct.AddressMissingHubTag.selector, loanContract, PWNHubTags.ACTIVE_LOAN)
+            abi.encodeWithSelector(PWNFixedProduct.AddressMissingHubTag.selector, loanContract, PWNHubTags.ACTIVE_LOAN)
         );
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
@@ -285,7 +285,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
         timestamp = bound(timestamp, proposal.expiration, type(uint256).max);
         vm.warp(timestamp);
 
-        vm.expectRevert(abi.encodeWithSelector(PWNStableProduct.Expired.selector, timestamp, proposal.expiration));
+        vm.expectRevert(abi.encodeWithSelector(PWNFixedProduct.Expired.selector, timestamp, proposal.expiration));
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
     }
@@ -312,7 +312,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
     function testFuzz_shouldFail_whenDurationShorterThanMin(uint256 duration) external {
         proposal.duration = bound(duration, 0, product.MIN_DURATION() - 1);
 
-        vm.expectRevert(abi.encodeWithSelector(PWNStableProduct.DurationTooShort.selector));
+        vm.expectRevert(abi.encodeWithSelector(PWNFixedProduct.DurationTooShort.selector));
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
     }
@@ -320,7 +320,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
     function test_shouldFail_whenMinCreditAmountZero() external {
         proposal.minCreditAmount = 0;
 
-        vm.expectRevert(abi.encodeWithSelector(PWNStableProduct.MinCreditAmountNotSet.selector));
+        vm.expectRevert(abi.encodeWithSelector(PWNFixedProduct.MinCreditAmountNotSet.selector));
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
     }
@@ -331,7 +331,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                PWNStableProduct.InsufficientCreditAmount.selector,
+                PWNFixedProduct.InsufficientCreditAmount.selector,
                 acceptorValues.creditAmount, proposal.minCreditAmount
             )
         );
@@ -379,7 +379,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
     function testFuzz_shouldFail_whenAcceptableLTVZero() external {
         proposal.acceptableLoanToValue = 0;
 
-        vm.expectRevert(PWNStableProduct.InvalidAcceptableLoanToValue.selector);
+        vm.expectRevert(PWNFixedProduct.InvalidAcceptableLoanToValue.selector);
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
     }
@@ -387,7 +387,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
     function testFuzz_shouldFail_whenInvalidAcceptableLTV(uint256 ltv) external {
         proposal.acceptableLoanToValue = bound(ltv, 10001, type(uint256).max);
 
-        vm.expectRevert(PWNStableProduct.InvalidAcceptableLoanToValue.selector);
+        vm.expectRevert(PWNFixedProduct.InvalidAcceptableLoanToValue.selector);
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
     }
@@ -396,12 +396,12 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
         proposal.acceptableLoanToValue = 9000;
 
         proposal.liquidationLoanToValue = bound(lltv, 0, proposal.acceptableLoanToValue - 1);
-        vm.expectRevert(PWNStableProduct.InvalidLiquidationLoanToValue.selector);
+        vm.expectRevert(PWNFixedProduct.InvalidLiquidationLoanToValue.selector);
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
 
         proposal.liquidationLoanToValue = bound(lltv, 10001, type(uint256).max);
-        vm.expectRevert(PWNStableProduct.InvalidLiquidationLoanToValue.selector);
+        vm.expectRevert(PWNFixedProduct.InvalidLiquidationLoanToValue.selector);
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
     }
@@ -411,7 +411,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
         proposal.acceptableLoanToValue = 9000;
         acceptorValues.loanToValue = bound(ltv, proposal.acceptableLoanToValue + 1, type(uint256).max);
 
-        vm.expectRevert(PWNStableProduct.InvalidLoanToValue.selector);
+        vm.expectRevert(PWNFixedProduct.InvalidLoanToValue.selector);
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
     }
@@ -423,7 +423,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
 
         vm.assume(ltv != proposal.acceptableLoanToValue);
 
-        vm.expectRevert(PWNStableProduct.InvalidLoanToValue.selector);
+        vm.expectRevert(PWNFixedProduct.InvalidLoanToValue.selector);
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
     }
@@ -432,9 +432,11 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
         vm.prank(loanContract);
         product.acceptProposal(loanId, acceptor, proposer, _proposalData());
 
-        (uint40 apr, uint40 defaultTimestamp, uint16 lltv, bytes memory feedData) = product.loanData(loanContract, loanId);
+        (uint40 apr, uint40 loanStart, uint40 defaultTimestamp, uint16 lltv, bytes memory feedData)
+            = product.loanData(loanContract, loanId);
 
         assertEq(uint256(apr), proposal.interestAPR);
+        assertEq(uint256(loanStart), block.timestamp);
         assertEq(uint256(defaultTimestamp), block.timestamp + proposal.duration);
         assertEq(uint256(lltv), proposal.liquidationLoanToValue);
         (bool[] memory fif, address[] memory fid) = decodeChainlinkPriceFeedData(feedData);
@@ -476,7 +478,7 @@ contract PWNStableProductTest_acceptProposal_Test is PWNStableProductTest {
 |*  # INTEREST MODULE                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNStableProductTest_interest_Test is PWNStableProductTest {
+contract PWNFixedProductTest_interest_Test is PWNFixedProductTest {
 
     function setUp() override public virtual {
         super.setUp();
@@ -499,44 +501,46 @@ contract PWNStableProductTest_interest_Test is PWNStableProductTest {
         assertEq(product.interest(loanContract, loanId), 0);
     }
 
-    function test_shouldCalculateInterest() external {
+    function test_shouldCalculateInterest_whenLastUpdatedTimestampIsLoanStart() external {
         loan.pastAccruedInterest = 46 ether; // should be ignored
         loan.principal = 100 ether;
-        loan.lastUpdateTimestamp = uint40(0);
+        loan.lastUpdateTimestamp = uint40(block.timestamp);
         _mockGetLOAN(loanId, loan);
 
-        vm.warp(0);
-
-        product.workaround_updateApr(loanContract, loanId, 100); // 1%
-        assertEq(product.interest(loanContract, loanId), 0);
-
-        product.workaround_updateApr(loanContract, loanId, 1000); // 10%
-        assertEq(product.interest(loanContract, loanId), 0);
-
-        product.workaround_updateApr(loanContract, loanId, 10000); // 100%
-        assertEq(product.interest(loanContract, loanId), 0);
-
-        vm.warp(182.5 days);
-
-        product.workaround_updateApr(loanContract, loanId, 100); // 1%
-        assertEq(product.interest(loanContract, loanId), 0.5 ether);
-
-        product.workaround_updateApr(loanContract, loanId, 1000); // 10%
-        assertEq(product.interest(loanContract, loanId), 5 ether);
-
-        product.workaround_updateApr(loanContract, loanId, 10000); // 100%
-        assertEq(product.interest(loanContract, loanId), 50 ether);
-
-        vm.warp(365 days);
+        vm.warp(block.timestamp);
 
         product.workaround_updateApr(loanContract, loanId, 100); // 1%
         assertEq(product.interest(loanContract, loanId), 1 ether);
 
+        vm.warp(182.5 days);
+
         product.workaround_updateApr(loanContract, loanId, 1000); // 10%
         assertEq(product.interest(loanContract, loanId), 10 ether);
 
+        vm.warp(365 days);
+
         product.workaround_updateApr(loanContract, loanId, 10000); // 100%
         assertEq(product.interest(loanContract, loanId), 100 ether);
+    }
+
+    function test_shouldReturnZero_whenLastUpdateTimestampIsAfterLoanStart() external {
+        loan.lastUpdateTimestamp = uint40(block.timestamp + 1);
+        _mockGetLOAN(loanId, loan);
+
+        vm.warp(block.timestamp);
+
+        product.workaround_updateApr(loanContract, loanId, 100); // 1%
+        assertEq(product.interest(loanContract, loanId), 0);
+
+        vm.warp(182.5 days);
+
+        product.workaround_updateApr(loanContract, loanId, 1000); // 10%
+        assertEq(product.interest(loanContract, loanId), 0);
+
+        vm.warp(365 days);
+
+        product.workaround_updateApr(loanContract, loanId, 10000); // 100%
+        assertEq(product.interest(loanContract, loanId), 0);
     }
 
 }
@@ -546,7 +550,7 @@ contract PWNStableProductTest_interest_Test is PWNStableProductTest {
 |*  # DEFAULT MODULE                                        *|
 |*----------------------------------------------------------*/
 
-contract PWNStableProductTest_isDefaulted_Test is PWNStableProductTest {
+contract PWNFixedProductTest_isDefaulted_Test is PWNFixedProductTest {
 
     function setUp() override public virtual {
         super.setUp();
@@ -588,7 +592,7 @@ contract PWNStableProductTest_isDefaulted_Test is PWNStableProductTest {
 |*  # LIQUIDATION MODULE                                    *|
 |*----------------------------------------------------------*/
 
-contract PWNStableProductTest_liquidate_Test is PWNStableProductTest {
+contract PWNFixedProductTest_liquidate_Test is PWNFixedProductTest {
 
     function setUp() override public virtual {
         super.setUp();
@@ -599,7 +603,7 @@ contract PWNStableProductTest_liquidate_Test is PWNStableProductTest {
 
 
     function test_shouldFail_whenDataIsNotEmpty() external {
-        vm.expectRevert(PWNStableProduct.LiquidationDataNotEmpty.selector);
+        vm.expectRevert(PWNFixedProduct.LiquidationDataNotEmpty.selector);
         vm.prank(loanContract);
         product.liquidate(loanId, liquidator, borrower, 1, loan.creditAddress, loan.collateral, "data");
     }
