@@ -92,14 +92,14 @@ abstract contract PWNUniswapV3IndividualProductTest is Test {
             lastUpdateTimestamp: uint40(0),
             collateral: address(uniswapNFTPositionManager).ERC721(proposal.collateralId),
             creditAddress: token,
-            principal: 10 ether,
+            principal: 1e10,
             pastAccruedInterest: 0,
             unclaimedRepayment: 0,
             product: product
         });
 
         _mockGetLOAN(loanId, loan);
-        _mockLOANDebt(loanId, 10 ether);
+        _mockLOANDebt(loanId, 1e10);
     }
 
     function _hashProposalTypedData(PWNUniswapV3IndividualProduct.Proposal memory _proposal) internal view returns (bytes32) {
