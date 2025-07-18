@@ -204,6 +204,7 @@ contract PWNStableProduct is IPWNProduct {
     /**
      * @notice Calculates the required collateral amount for a given position.
      * @dev This function determines how much collateral is needed based on the product's parameters.
+     * Feed direction is from credit denominator to collateral denominator.
      * @param creditAddress The address of the credit token.
      * @param creditAmount The amount of credit to be used in the calculation.
      * @param collateralAddress The address of the collateral token.

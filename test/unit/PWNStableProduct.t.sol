@@ -19,7 +19,6 @@ import {
 } from "pwn/periphery/product/PWNStableProduct.sol";
 
 import { PWNStableProductHarness } from "test/harness/PWNStableProductHarness.sol";
-import { ChainlinkDenominations } from "test/helper/ChainlinkDenominations.sol";
 
 using MultiToken for address;
 
@@ -33,8 +32,7 @@ abstract contract PWNStableProductTest is Test {
     address weth = makeAddr("weth");
 
     address loanContract = makeAddr("loanContract");
-    uint256 proposerPK = 73661723;
-    address proposer = vm.addr(proposerPK);
+    address proposer = makeAddr("proposer");
     address acceptor = makeAddr("acceptor");
     address borrower = makeAddr("borrower");
     address liquidator = makeAddr("liquidator");
