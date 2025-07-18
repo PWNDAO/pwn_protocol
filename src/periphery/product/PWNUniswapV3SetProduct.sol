@@ -72,7 +72,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
     bytes32 public immutable DOMAIN_SEPARATOR;
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(address[] tokenAAllowlist,address[] tokenBAllowlist,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 acceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
+        "Proposal(address[] tokenAAllowlist,address[] tokenBAllowlist,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 acceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,address loanContract)"
     );
 
     /**
@@ -93,7 +93,6 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
      * @param nonce Additional value to enable identical proposals in time. Without it, it would be impossible to make again proposal, which was once revoked. Can be used to create a group of proposals, where accepting one proposal will make other proposals in the group revoked.
      * @param expiration Proposal expiration timestamp in seconds.
      * @param proposerSpecHash Hash of a proposer specific data, which must be provided during a loan creation.
-     * @param isProposerLender If true, the proposer is a lender. If false, the proposer is a borrower.
      * @param loanContract Address of a loan contract that will create a loan from the proposal.
      */
     struct Proposal {
@@ -120,7 +119,6 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         uint256 expiration;
         // General proposal
         bytes32 proposerSpecHash;
-        bool isProposerLender;
         address loanContract;
     }
 
@@ -129,13 +127,13 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
      * @param collateralId Uniswap LP token ID.
      * @param tokenAIndex Index of tokenA in tokenAAllowlist.
      * @param tokenBIndex Index of tokenB in tokenBAllowlist.
-     * @param loanToValue Loan to value ratio with LOAN_TO_VALUE_DECIMALS decimals. It is used to calculate credit amount.
+     * @param creditAmount Amount of credit that will be borrowed.
      */
     struct AcceptorValues {
         uint256 collateralId;
         uint256 tokenAIndex;
         uint256 tokenBIndex;
-        uint256 loanToValue;
+        uint256 creditAmount;
     }
 
     /**
@@ -174,8 +172,10 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
     error InsufficientCreditAmount(uint256 current, uint256 limit);
     /** @notice Thrown when LP token pair is not part of the proposal.*/
     error InvalidLPTokenPair();
-    /** @notice Thrown when the provided LLTV is invalid (zero or above 1.0).*/
+    /** @notice Thrown when the provided LLTV is invalid.*/
     error InvalidLiquidationLoanToValue();
+    /** @notice Thrown when the acceptable loan to value is above 1.0.*/
+    error InvalidAcceptableLoanToValue();
     /** @notice Thrown when the liquidation data is not empty.*/
     error LiquidationDataNotEmpty();
     /** @notice Thrown when liquidated loan is not initialized in this module.*/
@@ -221,31 +221,27 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
 
 
     /*----------------------------------------------------------*|
-    |*  # EXTERNALS                                             *|
+    |*  # LP VALUE                                              *|
     |*----------------------------------------------------------*/
 
     /**
-     * @notice Get credit amount for a given LP token and loan to value.
+     * @notice Get the LP value of a Uniswap V3 position in credit asset.
+     * @dev Feed direction is from LP denominator to credit denominator.
      * @param creditAddress Credit token address.
      * @param collateralId LP token ID.
      * @param token0Denominator Flag indicating if token0 should be used as LP value denominator.
      * @param feedIntermediaryDenominations List of intermediary price assets that will be used to fetch prices to get to the correct asset denominator.
      * @param feedInvertFlags List of flags indicating if price feeds exist only for inverted base and quote assets.
-     * @param loanToValue Loan to value ratio with LOAN_TO_VALUE_DECIMALS decimals.
      * @return Amount of credit.
      */
-    function getCreditAmount(
+    function getLPValue(
         address creditAddress,
         uint256 collateralId,
         bool token0Denominator,
         address[] memory feedIntermediaryDenominations,
-        bool[] memory feedInvertFlags,
-        uint256 loanToValue
+        bool[] memory feedInvertFlags
     ) public view returns (uint256) {
-        (uint256 lpValue, address denominator) = _uniswap.getLPValue({
-            tokenId: collateralId,
-            token0Denominator: token0Denominator
-        });
+        (uint256 lpValue, address denominator) = _uniswap.getLPValue(collateralId, token0Denominator);
 
         if (creditAddress != denominator) {
             lpValue = _chainlink.convertDenomination({
@@ -257,7 +253,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
             });
         }
 
-        return lpValue.mulDiv(loanToValue, 10 ** LOAN_TO_VALUE_DECIMALS);
+        return lpValue;
     }
 
 
@@ -287,6 +283,32 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
             revert Expired({ current: block.timestamp, expiration: proposal.expiration });
         }
 
+        // Check min credit amount
+        if (proposal.minCreditAmount == 0) {
+            revert MinCreditAmountNotSet();
+        }
+
+        if (proposal.acceptableLoanToValue == 0) {
+            // If acceptable LTV is zero, it is invalid
+            revert InvalidAcceptableLoanToValue();
+        } else if (proposal.acceptableLoanToValue > 10 ** LOAN_TO_VALUE_DECIMALS) {
+            // If acceptable LTV is above 1.0, it is invalid
+            revert InvalidAcceptableLoanToValue();
+        }
+
+        if (proposal.liquidationLoanToValue < proposal.acceptableLoanToValue) {
+            // If LLTV is less than acceptable LTV, it is invalid
+            revert InvalidLiquidationLoanToValue();
+        } else if (proposal.liquidationLoanToValue > 10 ** LOAN_TO_VALUE_DECIMALS) {
+            // If LLTV is above 1.0, it is invalid
+            revert InvalidLiquidationLoanToValue();
+        }
+
+        // Check duration
+        if (proposal.duration < MIN_DURATION) {
+            revert DurationTooShort();
+        }
+
         // Check proposal is not revoked
         if (!revokedNonce.isNonceUsable(proposer, proposal.nonceSpace, proposal.nonce)) {
             revert PWNRevokedNonce.NonceNotUsable({
@@ -296,52 +318,9 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
             });
         }
 
-        // Check min credit amount
-        if (proposal.minCreditAmount == 0) {
-            revert MinCreditAmountNotSet();
-        }
-
-        // Check liquidation ltv
-        if (proposal.liquidationLoanToValue == 0) {
-            // If LLTV is zero, it is invalid
-            revert InvalidLiquidationLoanToValue();
-        } else if (proposal.liquidationLoanToValue > 10 ** LOAN_TO_VALUE_DECIMALS) {
-            // If LLTV is above 1.0, it is invalid
-            revert InvalidLiquidationLoanToValue();
-        } else if (proposal.liquidationLoanToValue < proposal.acceptableLoanToValue) {
-            // If LLTV is less than max acceptable LTV, it is invalid
-            revert InvalidLiquidationLoanToValue();
-        }
-
-        // Check if LTV is within acceptable limits
-        if (proposal.isProposerLender && acceptorValues.loanToValue > proposal.acceptableLoanToValue) {
-            // For lender, check if the LTV is below the maximum acceptable LTV
-            revert InvalidLoanToValue();
-        } else if (!proposal.isProposerLender && acceptorValues.loanToValue != proposal.acceptableLoanToValue) {
-            // For borrower, check if the LTV is equal to the acceptable LTV
-            revert InvalidLoanToValue();
-        }
-
-        // Check duration
-        if (proposal.duration < MIN_DURATION) {
-            revert DurationTooShort();
-        }
-
-        bool token0Denominator = _checkLPTokenPair(proposal, acceptorValues);
-
-        // Calculate credit amount
-        uint256 creditAmount = getCreditAmount(
-            proposal.creditAddress,
-            acceptorValues.collateralId,
-            token0Denominator,
-            proposal.feedIntermediaryDenominations,
-            proposal.feedInvertFlags,
-            acceptorValues.loanToValue
-        );
-
         // Check sufficient credit amount
-        if (creditAmount < proposal.minCreditAmount) {
-            revert InsufficientCreditAmount({ current: creditAmount, limit: proposal.minCreditAmount });
+        if (acceptorValues.creditAmount < proposal.minCreditAmount) {
+            revert InsufficientCreditAmount({ current: acceptorValues.creditAmount, limit: proposal.minCreditAmount });
         }
 
         if (proposal.availableCreditLimit == 0) {
@@ -350,7 +329,23 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         } else {
             // Update utilized credit
             // Note: This will revert if utilized credit would exceed the available credit limit
-            utilizedCredit.utilizeCredit(proposer, proposal.utilizedCreditId, creditAmount, proposal.availableCreditLimit);
+            utilizedCredit.utilizeCredit(proposer, proposal.utilizedCreditId, acceptorValues.creditAmount, proposal.availableCreditLimit);
+        }
+
+        bool token0Denominator = _checkLPTokenPair(proposal, acceptorValues);
+
+        // Calculate credit amount
+        uint256 lpValue = getLPValue(
+            proposal.creditAddress,
+            acceptorValues.collateralId,
+            token0Denominator,
+            proposal.feedIntermediaryDenominations,
+            proposal.feedInvertFlags
+        );
+
+        // Check if the LTV is below the maximum acceptable LTV
+        if (acceptorValues.creditAmount.mulDiv(10 ** LOAN_TO_VALUE_DECIMALS, lpValue) > proposal.acceptableLoanToValue) {
+            revert InvalidLoanToValue();
         }
 
         // Store data for the loan interest, default, and liquidation modules
@@ -368,11 +363,11 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
 
         // Create loan terms object
         return Terms({
-            isProposerLender: proposal.isProposerLender,
+            isProposerLender: true,
             proposerSpecHash: proposal.proposerSpecHash,
             collateral: address(_uniswap.positionManager).ERC721(acceptorValues.collateralId),
             creditAddress: proposal.creditAddress,
-            principal: creditAmount
+            principal: acceptorValues.creditAmount
         });
     }
 
@@ -418,16 +413,15 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations)
             = decodeChainlinkPriceFeedData(data.feedData);
 
-        uint256 liquidationValue = getCreditAmount(
+        uint256 defaultValue = getLPValue(
             loan.creditAddress,
             loan.collateral.id,
             data.token0Denominator,
             feedIntermediaryDenominations,
-            feedInvertFlags,
-            data.lltv
-        );
+            feedInvertFlags
+        ).mulDiv(data.lltv, 10 ** LOAN_TO_VALUE_DECIMALS);
 
-        return PWNLoan(loanContract).getLOANDebt(loanId) >= liquidationValue;
+        return PWNLoan(loanContract).getLOANDebt(loanId) >= defaultValue;
     }
 
 
@@ -458,14 +452,13 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations)
             = decodeChainlinkPriceFeedData(data.feedData);
 
-        uint256 lpLiquidationValue = getCreditAmount(
+        uint256 lpLiquidationValue = getLPValue(
             creditAddress,
             collateral.id,
             data.token0Denominator,
             feedIntermediaryDenominations,
-            feedInvertFlags,
-            data.lltv
-        );
+            feedInvertFlags
+        ).mulDiv(data.lltv, 10 ** LOAN_TO_VALUE_DECIMALS);
 
         if (lpLiquidationValue > debt) {
             credit.amount = lpLiquidationValue - debt;
@@ -571,7 +564,6 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         uint256 nonce;
         uint256 expiration;
         bytes32 proposerSpecHash;
-        bool isProposerLender;
         address loanContract;
     }
 
@@ -592,7 +584,6 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
             nonce: proposal.nonce,
             expiration: proposal.expiration,
             proposerSpecHash: proposal.proposerSpecHash,
-            isProposerLender: proposal.isProposerLender,
             loanContract: proposal.loanContract
         });
         return abi.encode(erc712Proposal);
