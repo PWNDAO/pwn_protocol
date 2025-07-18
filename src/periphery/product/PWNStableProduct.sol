@@ -151,8 +151,10 @@ contract PWNStableProduct is IPWNProduct {
     error MinCreditAmountNotSet();
     /** @notice Thrown when proposal credit amount is insufficient.*/
     error InsufficientCreditAmount(uint256 current, uint256 limit);
-    /** @notice Thrown when the provided LLTV is invalid (zero or above 1.0).*/
+    /** @notice Thrown when the provided LLTV is invalid.*/
     error InvalidLiquidationLoanToValue();
+    /** @notice Thrown when the acceptable loan to value is above 1.0.*/
+    error InvalidAcceptableLoanToValue();
     /** @notice Thrown when the liquidation data is not empty.*/
     error LiquidationDataNotEmpty();
     /** @notice Thrown when liquidated loan is not initialized in this module.*/
@@ -196,7 +198,7 @@ contract PWNStableProduct is IPWNProduct {
 
 
     /*----------------------------------------------------------*|
-    |*  # EXTERNALS                                             *|
+    |*  # COLLATERAL AMOUNT                                     *|
     |*----------------------------------------------------------*/
 
     /**
@@ -255,24 +257,19 @@ contract PWNStableProduct is IPWNProduct {
             revert Expired({ current: block.timestamp, expiration: proposal.expiration });
         }
 
-        // Check proposal is not revoked
-        if (!revokedNonce.isNonceUsable(proposer, proposal.nonceSpace, proposal.nonce)) {
-            revert PWNRevokedNonce.NonceNotUsable({
-                addr: proposer,
-                nonceSpace: proposal.nonceSpace,
-                nonce: proposal.nonce
-            });
+        if (proposal.acceptableLoanToValue == 0) {
+            // If acceptable LTV is zero, it is invalid
+            revert InvalidAcceptableLoanToValue();
+        } else if (proposal.acceptableLoanToValue > 10 ** LOAN_TO_VALUE_DECIMALS) {
+            // If acceptable LTV is above 1.0, it is invalid
+            revert InvalidAcceptableLoanToValue();
         }
 
-        // Check liquidation ltv
-        if (proposal.liquidationLoanToValue == 0) {
-            // If LLTV is zero, it is invalid
+        if (proposal.liquidationLoanToValue < proposal.acceptableLoanToValue) {
+            // If LLTV is less than acceptable LTV, it is invalid
             revert InvalidLiquidationLoanToValue();
         } else if (proposal.liquidationLoanToValue > 10 ** LOAN_TO_VALUE_DECIMALS) {
             // If LLTV is above 1.0, it is invalid
-            revert InvalidLiquidationLoanToValue();
-        } else if (proposal.liquidationLoanToValue < proposal.acceptableLoanToValue) {
-            // If LLTV is less than max acceptable LTV, it is invalid
             revert InvalidLiquidationLoanToValue();
         }
 
@@ -298,6 +295,15 @@ contract PWNStableProduct is IPWNProduct {
         } else if (!proposal.isProposerLender && acceptorValues.loanToValue != proposal.acceptableLoanToValue) {
             // For borrower, check if the LTV is equal to the acceptable LTV
             revert InvalidLoanToValue();
+        }
+
+        // Check proposal is not revoked
+        if (!revokedNonce.isNonceUsable(proposer, proposal.nonceSpace, proposal.nonce)) {
+            revert PWNRevokedNonce.NonceNotUsable({
+                addr: proposer,
+                nonceSpace: proposal.nonceSpace,
+                nonce: proposal.nonce
+            });
         }
 
         // Compute collateral amount required for the loan
