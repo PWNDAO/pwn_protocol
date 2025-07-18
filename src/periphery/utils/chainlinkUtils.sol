@@ -38,6 +38,9 @@ function encodeChainlinkPriceFeedData(
     address[] memory feedIntermediaryDenominations,
     uint256 maxChainlinkIntermediaryDenominations
 ) pure returns (bytes memory data) {
+    if (feedInvertFlags.length == 0 && feedIntermediaryDenominations.length == 0) {
+        return "";
+    }
     if (feedIntermediaryDenominations.length + 1 != feedInvertFlags.length) {
         revert Chainlink.ChainlinkInvalidInputLenghts();
     }
@@ -65,6 +68,8 @@ function encodeChainlinkPriceFeedData(
 function decodeChainlinkPriceFeedData(
     bytes memory data
 ) pure returns (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations) {
+    if (data.length == 0) return (new bool[](0), new address[](0));
+
     uint256 intermediaryDenominationsLength = (data.length - 1) / 21;
 
     feedInvertFlags = new bool[](intermediaryDenominationsLength + 1);

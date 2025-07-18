@@ -4,14 +4,27 @@ pragma solidity 0.8.16;
 import { Test } from "forge-std/Test.sol";
 
 import {
-    flipFeeds,
-    encodeChainlinkPriceFeedData,
-    decodeChainlinkPriceFeedData,
+    ChainlinkUtilsHarness,
     Chainlink
-} from "pwn/periphery/utils/chainlinkUtils.sol";
+} from "test/harness/ChainlinkUtilsHarness.sol";
 
 
-contract FlipFeeds_Test is Test {
+abstract contract ChainlinkUtilsTest is Test {
+
+    ChainlinkUtilsHarness utils;
+
+    function setUp() external {
+        utils = new ChainlinkUtilsHarness();
+    }
+
+}
+
+
+/*----------------------------------------------------------*|
+|*  # FLIP FEEDS                                            *|
+|*----------------------------------------------------------*/
+
+contract ChainlinkUtilsTest_flipFeeds_Test is ChainlinkUtilsTest {
 
     function test_shouldFlipFeeds() external {
         bool[] memory feedInvertFlags = new bool[](3);
@@ -24,7 +37,7 @@ contract FlipFeeds_Test is Test {
         feedIntermediaryDenominations[1] = makeAddr("intermediary2");
 
         (bool[] memory flippedFeedInvertFlags, address[] memory flippedFeedIntermediaryDenominations) =
-            flipFeeds(feedInvertFlags, feedIntermediaryDenominations);
+            utils.flipFeeds(feedInvertFlags, feedIntermediaryDenominations);
 
         assertEq(flippedFeedInvertFlags.length, 3);
         assertEq(flippedFeedIntermediaryDenominations.length, 2);
@@ -40,7 +53,11 @@ contract FlipFeeds_Test is Test {
 }
 
 
-contract EncodeDecodeChainlinkPriceFeedData_Test is Test {
+/*----------------------------------------------------------*|
+|*  # EN/DECODE PRICE FEEDS                                 *|
+|*----------------------------------------------------------*/
+
+contract ChainlinkUtilsTest_encodeDecodeChainlinkPriceFeedData_Test is ChainlinkUtilsTest {
 
     uint256 maxDenominations = 4;
 
@@ -56,11 +73,11 @@ contract EncodeDecodeChainlinkPriceFeedData_Test is Test {
         address[] memory feedIntermediaryDenominations = new address[](intermediaryDenominationsLength);
 
         vm.expectRevert(Chainlink.ChainlinkInvalidInputLenghts.selector);
-        encodeChainlinkPriceFeedData(feedInvertFlags, feedIntermediaryDenominations, maxDenominations);
+        utils.encodeChainlinkPriceFeedData(feedInvertFlags, feedIntermediaryDenominations, maxDenominations);
     }
 
     function test_shouldEncodeZeroLengthFeedInvertFlagsAndInermediaryDenominations() external {
-        bytes memory encodedData = encodeChainlinkPriceFeedData(new bool[](0), new address[](0), maxDenominations);
+        bytes memory encodedData = utils.encodeChainlinkPriceFeedData(new bool[](0), new address[](0), maxDenominations);
 
         assertEq(encodedData.length, 0);
     }
@@ -70,7 +87,7 @@ contract EncodeDecodeChainlinkPriceFeedData_Test is Test {
         address[] memory feedIntermediaryDenominations = new address[](5);
 
         vm.expectRevert(abi.encodeWithSelector(Chainlink.IntermediaryDenominationsOutOfBounds.selector, 5, 4));
-        encodeChainlinkPriceFeedData(feedInvertFlags, feedIntermediaryDenominations, maxDenominations);
+        utils.encodeChainlinkPriceFeedData(feedInvertFlags, feedIntermediaryDenominations, maxDenominations);
     }
 
     function test_shouldEncodePriceFeedData() external {
@@ -83,7 +100,7 @@ contract EncodeDecodeChainlinkPriceFeedData_Test is Test {
         feedIntermediaryDenominations[0] = makeAddr("intermediary1");
         feedIntermediaryDenominations[1] = makeAddr("intermediary2");
 
-        bytes memory encodedData = encodeChainlinkPriceFeedData(
+        bytes memory encodedData = utils.encodeChainlinkPriceFeedData(
             feedInvertFlags, feedIntermediaryDenominations, maxDenominations
         );
 
@@ -93,7 +110,7 @@ contract EncodeDecodeChainlinkPriceFeedData_Test is Test {
         );
 
         (bool[] memory decodedFeedInvertFlags, address[] memory decodedFeedIntermediaryDenominations) =
-            decodeChainlinkPriceFeedData(encodedData);
+            utils.decodeChainlinkPriceFeedData(encodedData);
 
         assertEq(decodedFeedInvertFlags.length, 3);
         assertEq(decodedFeedIntermediaryDenominations.length, 2);
@@ -103,7 +120,7 @@ contract EncodeDecodeChainlinkPriceFeedData_Test is Test {
 
     function test_shouldDecodeEmptyPriceFeedData() external {
         (bool[] memory feedInvertFlags, address[] memory feedIntermediaryDenominations) =
-            decodeChainlinkPriceFeedData("");
+            utils.decodeChainlinkPriceFeedData("");
 
         assertEq(feedInvertFlags.length, 0);
         assertEq(feedIntermediaryDenominations.length, 0);
