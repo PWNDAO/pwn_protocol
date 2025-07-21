@@ -13,21 +13,12 @@ import {
     PWNHub,
     PWNHubTags,
     PWNLoan,
-    PWNDurationDefaultModule,
-    PWNStableInterestModule,
-    PWNClaimLiquidationModule,
-    PWNStableInterestProposal,
-    PWNSimpleProposal,
-    PWNUniswapV3LPIndividualProposal,
-    PWNUniswapV3LPSetProposal,
     PWNLOAN,
     PWNRevokedNonce,
     PWNUtilizedCredit,
     MultiTokenCategoryRegistry,
     IChainlinkAggregatorLike,
-    IChainlinkFeedRegistryLike,
-    PWNChainlinkValueDefaultModule,
-    PWNOpenLiquidationModule
+    IChainlinkFeedRegistryLike
 } from "pwn/Deployments.sol";
 
 
@@ -85,17 +76,6 @@ abstract contract DeploymentTest is Deployments, Test {
         __d.revokedNonce = new PWNRevokedNonce(address(__d.hub), PWNHubTags.NONCE_MANAGER);
         __d.utilizedCredit = new PWNUtilizedCredit(address(__d.hub), PWNHubTags.LOAN_PROPOSAL);
 
-        __d.stableInterestModule = new PWNStableInterestModule(__d.hub);
-        __d.durationDefaultModule = new PWNDurationDefaultModule(__d.hub);
-        __d.chainlinkValueDefaultModule = new PWNChainlinkValueDefaultModule(
-            __d.hub,
-            IChainlinkAggregatorLike(__e.chainlinkL2SequencerUptimeFeed),
-            __d.chainlinkFeedRegistry,
-            __e.weth
-        );
-        __d.claimLiquidationModule = new PWNClaimLiquidationModule();
-        __d.openLiquidationModule = new PWNOpenLiquidationModule();
-
         __d.loanToken = new PWNLOAN(address(__d.hub));
         __d.loan = new PWNLoan(
             address(__d.hub),
@@ -104,100 +84,14 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.categoryRegistry)
         );
 
-        __d.simpleProposal = new PWNSimpleProposal(
-            address(__d.hub),
-            address(__d.revokedNonce),
-            address(__d.config),
-            address(__d.utilizedCredit),
-            address(__d.stableInterestModule),
-            address(__d.durationDefaultModule),
-            address(__d.claimLiquidationModule)
-        );
-        __d.stableInterestProposal = new PWNStableInterestProposal(
-            address(__d.hub),
-            address(__d.revokedNonce),
-            address(__d.config),
-            address(__d.utilizedCredit),
-            address(__d.stableInterestModule),
-            address(__d.chainlinkValueDefaultModule),
-            address(__d.openLiquidationModule),
-            address(__d.chainlinkFeedRegistry),
-            __e.chainlinkL2SequencerUptimeFeed,
-            __e.weth
-        );
-        __d.uniswapV3LPIndividualProposal = new PWNUniswapV3LPIndividualProposal(
-            address(__d.hub),
-            address(__d.revokedNonce),
-            address(__d.config),
-            address(__d.utilizedCredit),
-            address(__d.stableInterestModule),
-            address(__d.durationDefaultModule),
-            address(__d.claimLiquidationModule),
-            __e.uniswapV3Factory,
-            __e.uniswapV3NFTPositionManager,
-            address(__d.chainlinkFeedRegistry),
-            __e.chainlinkL2SequencerUptimeFeed,
-            __e.weth
-        );
-        __d.uniswapV3LPSetProposal = new PWNUniswapV3LPSetProposal(
-            address(__d.hub),
-            address(__d.revokedNonce),
-            address(__d.config),
-            address(__d.utilizedCredit),
-            address(__d.stableInterestModule),
-            address(__d.durationDefaultModule),
-            address(__d.claimLiquidationModule),
-            __e.uniswapV3Factory,
-            __e.uniswapV3NFTPositionManager,
-            address(__d.chainlinkFeedRegistry),
-            __e.chainlinkL2SequencerUptimeFeed,
-            __e.weth
-        );
+        // todo: deploy products
 
         // Set hub tags
-        address[] memory addrs = new address[](15);
+        address[] memory addrs = new address[](1);
         addrs[0] = address(__d.loan);
-        addrs[1] = address(__d.loan);
 
-        addrs[2] = address(__d.simpleProposal);
-        addrs[3] = address(__d.simpleProposal);
-
-        addrs[4] = address(__d.stableInterestProposal);
-        addrs[5] = address(__d.stableInterestProposal);
-
-        addrs[6] = address(__d.uniswapV3LPIndividualProposal);
-        addrs[7] = address(__d.uniswapV3LPIndividualProposal);
-
-        addrs[8] = address(__d.uniswapV3LPSetProposal);
-        addrs[9] = address(__d.uniswapV3LPSetProposal);
-
-        addrs[10] = address(__d.stableInterestModule);
-        addrs[11] = address(__d.durationDefaultModule);
-        addrs[12] = address(__d.chainlinkValueDefaultModule);
-        addrs[13] = address(__d.claimLiquidationModule);
-        addrs[14] = address(__d.openLiquidationModule);
-
-        bytes32[] memory tags = new bytes32[](15);
+        bytes32[] memory tags = new bytes32[](1);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
-        tags[1] = PWNHubTags.NONCE_MANAGER;
-
-        tags[2] = PWNHubTags.LOAN_PROPOSAL;
-        tags[3] = PWNHubTags.NONCE_MANAGER;
-
-        tags[4] = PWNHubTags.LOAN_PROPOSAL;
-        tags[5] = PWNHubTags.NONCE_MANAGER;
-
-        tags[6] = PWNHubTags.LOAN_PROPOSAL;
-        tags[7] = PWNHubTags.NONCE_MANAGER;
-
-        tags[8] = PWNHubTags.LOAN_PROPOSAL;
-        tags[9] = PWNHubTags.NONCE_MANAGER;
-
-        tags[10] = PWNHubTags.MODULE;
-        tags[11] = PWNHubTags.MODULE;
-        tags[12] = PWNHubTags.MODULE;
-        tags[13] = PWNHubTags.MODULE;
-        tags[14] = PWNHubTags.MODULE;
 
         vm.prank(__e.protocolTimelock);
         __d.hub.setTags(addrs, tags, true);
