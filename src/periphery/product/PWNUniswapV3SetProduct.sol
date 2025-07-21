@@ -288,6 +288,11 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
             revert MinCreditAmountNotSet();
         }
 
+        // Check sufficient credit amount
+        if (acceptorValues.creditAmount < proposal.minCreditAmount) {
+            revert InsufficientCreditAmount({ current: acceptorValues.creditAmount, limit: proposal.minCreditAmount });
+        }
+
         if (proposal.acceptableLoanToValue == 0) {
             // If acceptable LTV is zero, it is invalid
             revert InvalidAcceptableLoanToValue();
@@ -316,11 +321,6 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
                 nonceSpace: proposal.nonceSpace,
                 nonce: proposal.nonce
             });
-        }
-
-        // Check sufficient credit amount
-        if (acceptorValues.creditAmount < proposal.minCreditAmount) {
-            revert InsufficientCreditAmount({ current: acceptorValues.creditAmount, limit: proposal.minCreditAmount });
         }
 
         if (proposal.availableCreditLimit == 0) {
