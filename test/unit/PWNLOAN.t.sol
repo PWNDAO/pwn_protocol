@@ -713,31 +713,33 @@ contract PWNLoan_Create_Test is PWNLoanTest {
 
     // # Reentrancy
 
-    // function test_shouldFail_whenReenteringSameLoan() external {
-    //     terms.product = IPWNProduct(address(reentrancySpy));
+    function test_shouldFail_whenReenteringSameLoan() external {
+        proposalSpec.product = IPWNProduct(address(reentrancySpy));
 
-    //     _mockHubTag(address(reentrancySpy), PWNHubTags.MODULE);
+        // Repay
+        reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.repay.selector, loanId, 0));
+        vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
+        vm.prank(borrower);
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
 
-    //     // Repay
-    //     reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.repay.selector, loanId, 0));
-    //     vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
-    //     loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        // Repay with collateral
+        reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.repayWithCollateral.selector, loanId, borrowerCollateralRepaymentHook, ""));
+        vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
+        vm.prank(borrower);
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
 
-    //     // Repay with collateral
-    //     reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.repayWithCollateral.selector, loanId, borrowerCollateralRepaymentHook, ""));
-    //     vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
-    //     loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        // Liquidate
+        reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.liquidate.selector, loanId, ""));
+        vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
+        vm.prank(borrower);
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
 
-    //     // Liquidate
-    //     reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.liquidate.selector, loanId, ""));
-    //     vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
-    //     loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
-
-    //     // Claim repayment
-    //     reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.claimRepayment.selector, loanId));
-    //     vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
-    //     loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
-    // }
+        // Claim repayment
+        reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.claimRepayment.selector, loanId));
+        vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
+        vm.prank(borrower);
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+    }
 
 }
 
