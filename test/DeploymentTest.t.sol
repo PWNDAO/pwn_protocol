@@ -14,12 +14,22 @@ import {
     PWNHubTags,
     PWNLoan,
     PWNLOAN,
+    PWNStableProduct,
+    PWNFixedProduct,
+    PWNUniswapV3IndividualProduct,
+    PWNUniswapV3SetProduct,
     PWNRevokedNonce,
     PWNUtilizedCredit,
     MultiTokenCategoryRegistry,
     IChainlinkAggregatorLike,
-    IChainlinkFeedRegistryLike
+    IChainlinkFeedRegistryLike,
+    PWNRefinanceBorrowerCreateHook,
+    PWN4626VaultLenderHook,
+    PWNAaveLenderHook,
+    PWNCompoundLenderHook,
+    PWNDirectLenderRepaymentHook
 } from "pwn/Deployments.sol";
+import { INonfungiblePositionManager } from "pwn/periphery/lib/UniswapV3.sol";
 
 
 abstract contract DeploymentTest is Deployments, Test {
@@ -84,14 +94,86 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.categoryRegistry)
         );
 
-        // todo: deploy products
+        // Products
+        __d.products.stable = new PWNStableProduct(
+            __d.hub,
+            __d.revokedNonce,
+            __d.utilizedCredit,
+            __d.chainlinkFeedRegistry,
+            IChainlinkAggregatorLike(__e.chainlinkL2SequencerUptimeFeed),
+            __e.weth
+        );
+        __d.products._fixed = new PWNFixedProduct(
+            __d.hub,
+            __d.revokedNonce,
+            __d.utilizedCredit,
+            __d.chainlinkFeedRegistry,
+            IChainlinkAggregatorLike(__e.chainlinkL2SequencerUptimeFeed),
+            __e.weth
+        );
+        __d.products.uniswapV3Individual = new PWNUniswapV3IndividualProduct(
+            __d.hub,
+            __d.revokedNonce,
+            __e.uniswapV3Factory,
+            INonfungiblePositionManager(__e.uniswapV3NFTPositionManager),
+            __d.chainlinkFeedRegistry,
+            IChainlinkAggregatorLike(__e.chainlinkL2SequencerUptimeFeed),
+            __e.weth
+        );
+        __d.products.uniswapV3Set = new PWNUniswapV3SetProduct(
+            __d.hub,
+            __d.revokedNonce,
+            __d.utilizedCredit,
+            __e.uniswapV3Factory,
+            INonfungiblePositionManager(__e.uniswapV3NFTPositionManager),
+            __d.chainlinkFeedRegistry,
+            IChainlinkAggregatorLike(__e.chainlinkL2SequencerUptimeFeed),
+            __e.weth
+        );
+
+        // Hooks
+        __d.hooks.refinanceBorrowerCreate = new PWNRefinanceBorrowerCreateHook(__d.hub);
+        __d.hooks.vaultLender = new PWN4626VaultLenderHook(__d.hub);
+        __d.hooks.aaveLender = new PWNAaveLenderHook(__d.hub, __e.aave);
+        __d.hooks.compoundLender = new PWNCompoundLenderHook(__d.hub);
+        __d.hooks.directLenderRepayment = new PWNDirectLenderRepaymentHook();
 
         // Set hub tags
-        address[] memory addrs = new address[](1);
+        address[] memory addrs = new address[](13);
         addrs[0] = address(__d.loan);
 
-        bytes32[] memory tags = new bytes32[](1);
+        addrs[1] = address(__d.products.stable);
+        addrs[2] = address(__d.products._fixed);
+        addrs[3] = address(__d.products.uniswapV3Individual);
+        addrs[4] = address(__d.products.uniswapV3Set);
+
+        addrs[5] = address(__d.products.stable);
+        addrs[6] = address(__d.products._fixed);
+        addrs[7] = address(__d.products.uniswapV3Set);
+
+        addrs[8] = address(__d.hooks.refinanceBorrowerCreate);
+        addrs[9] = address(__d.hooks.vaultLender);
+        addrs[10] = address(__d.hooks.aaveLender);
+        addrs[11] = address(__d.hooks.compoundLender);
+        addrs[12] = address(__d.hooks.directLenderRepayment);
+
+        bytes32[] memory tags = new bytes32[](13);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
+
+        tags[1] = PWNHubTags.NONCE_MANAGER;
+        tags[2] = PWNHubTags.NONCE_MANAGER;
+        tags[3] = PWNHubTags.NONCE_MANAGER;
+        tags[4] = PWNHubTags.NONCE_MANAGER;
+
+        tags[5] = PWNHubTags.LOAN_PROPOSAL;
+        tags[6] = PWNHubTags.LOAN_PROPOSAL;
+        tags[7] = PWNHubTags.LOAN_PROPOSAL;
+
+        tags[8] = PWNHubTags.HOOK;
+        tags[9] = PWNHubTags.HOOK;
+        tags[10] = PWNHubTags.HOOK;
+        tags[11] = PWNHubTags.HOOK;
+        tags[12] = PWNHubTags.HOOK;
 
         vm.prank(__e.protocolTimelock);
         __d.hub.setTags(addrs, tags, true);

@@ -16,6 +16,17 @@ import { PWNLOAN } from "pwn/core/token/PWNLOAN.sol";
 import { IChainlinkFeedRegistryLike } from "pwn/periphery/interfaces/IChainlinkFeedRegistryLike.sol";
 import { IChainlinkAggregatorLike } from "pwn/periphery/interfaces/IChainlinkAggregatorLike.sol";
 
+import { PWNStableProduct } from "pwn/periphery/product/PWNStableProduct.sol";
+import { PWNFixedProduct } from "pwn/periphery/product/PWNFixedProduct.sol";
+import { PWNUniswapV3IndividualProduct } from "pwn/periphery/product/PWNUniswapV3IndividualProduct.sol";
+import { PWNUniswapV3SetProduct } from "pwn/periphery/product/PWNUniswapV3SetProduct.sol";
+
+import { PWNRefinanceBorrowerCreateHook } from "pwn/periphery/hook/borrower/PWNRefinanceBorrowerCreateHook.sol";
+import { PWN4626VaultLenderHook } from "pwn/periphery/hook/lender/PWN4626VaultLenderHook.sol";
+import { PWNAaveLenderHook, IAaveLike } from "pwn/periphery/hook/lender/PWNAaveLenderHook.sol";
+import { PWNCompoundLenderHook } from "pwn/periphery/hook/lender/PWNCompoundLenderHook.sol";
+import { PWNDirectLenderRepaymentHook } from "pwn/periphery/hook/lender/PWNDirectLenderRepaymentHook.sol";
+
 import { PWNRevokedNonce } from "pwn/periphery/auxiliary/PWNRevokedNonce.sol";
 import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol";
 
@@ -38,21 +49,39 @@ abstract contract Deployments is CommonBase {
     External __e;
     CreationCode __cc;
 
+    struct Products {
+        PWNStableProduct stable;
+        PWNFixedProduct _fixed; // Note: `fixed` is a reserved keyword
+        PWNUniswapV3IndividualProduct uniswapV3Individual;
+        PWNUniswapV3SetProduct uniswapV3Set;
+    }
+
+    struct Hooks {
+        PWN4626VaultLenderHook vaultLender;
+        PWNAaveLenderHook aaveLender;
+        PWNCompoundLenderHook compoundLender;
+        PWNDirectLenderRepaymentHook directLenderRepayment;
+        PWNRefinanceBorrowerCreateHook refinanceBorrowerCreate;
+    }
+
     /// @dev Properties need to be in alphabetical order.
     struct Deployment {
         MultiTokenCategoryRegistry categoryRegistry;
         IChainlinkFeedRegistryLike chainlinkFeedRegistry;
         PWNConfig config;
         PWNConfig configSingleton;
+        Hooks hooks;
         PWNHub hub;
         PWNLoan loan;
         PWNLOAN loanToken;
+        Products products;
         PWNRevokedNonce revokedNonce;
         PWNUtilizedCredit utilizedCredit;
     }
 
     /// @dev Properties need to be in alphabetical order.
     struct External {
+        IAaveLike aave;
         address adminTimelock;
         address chainlinkL2SequencerUptimeFeed;
         address dao;
