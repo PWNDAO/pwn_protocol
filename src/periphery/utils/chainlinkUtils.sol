@@ -78,7 +78,7 @@ function decodeChainlinkPriceFeedData(
     for (uint256 i; i < intermediaryDenominationsLength; ++i) {
         feedInvertFlags[i] = data[i * 21] == bytes1(0x01);
         address addr;
-        assembly {
+        assembly ("memory-safe") {
             addr := shr(96, mload(add(add(data, 0x20), add(mul(i, 21), 1))))
         }
         feedIntermediaryDenominations[i] = addr;

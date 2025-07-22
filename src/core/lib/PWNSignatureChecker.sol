@@ -50,7 +50,7 @@ library PWNSignatureChecker {
 
             // Standard signature data (65 bytes)
             if (signature.length == 65) {
-                assembly {
+                assembly ("memory-safe") {
                     r := mload(add(signature, 0x20))
                     s := mload(add(signature, 0x40))
                     v := byte(0, mload(add(signature, 0x60)))
@@ -60,7 +60,7 @@ library PWNSignatureChecker {
             else if (signature.length == 64) {
                 bytes32 vs;
 
-                assembly {
+                assembly ("memory-safe") {
                     r := mload(add(signature, 0x20))
                     vs := mload(add(signature, 0x40))
                 }
