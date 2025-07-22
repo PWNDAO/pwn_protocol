@@ -22,7 +22,9 @@ abstract contract PWNCompoundLenderHookTest is Test {
 
 
     function setUp() public virtual {
-        hook = new PWNCompoundLenderHook(PWNHub(hub), ICometLike(pool));
+        hook = new PWNCompoundLenderHook(PWNHub(hub));
+
+        hook.setIsPool(pool, true);
 
         _mockHubTag(loanContract, PWNHubTags.ACTIVE_LOAN, true);
         vm.mockCall(pool, abi.encodeWithSelector(ICometLike.supplyFrom.selector), abi.encode(""));
@@ -50,25 +52,33 @@ contract PWNCompoundLenderHook_OnLoanCreated_Test is PWNCompoundLenderHookTest {
 
         vm.expectRevert(PWNCompoundLenderHook.CallerNotActiveLoan.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, "");
+        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(pool));
     }
 
     function test_shouldFail_whenMissingInputs() external {
         vm.expectRevert(PWNCompoundLenderHook.LenderZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(address(0), creditAddress, 1, "");
+        hook.onLoanCreated(address(0), creditAddress, 1, abi.encode(pool));
 
         vm.expectRevert(PWNCompoundLenderHook.CreditZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, address(0), 1, "");
+        hook.onLoanCreated(lender, address(0), 1, abi.encode(pool));
 
         vm.expectRevert(PWNCompoundLenderHook.PrincipalZero.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 0, "");
+        hook.onLoanCreated(lender, creditAddress, 0, abi.encode(pool));
 
-        vm.expectRevert(PWNCompoundLenderHook.DataNotEmpty.selector);
+        vm.expectRevert(PWNCompoundLenderHook.InvalidLenderDataLength.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(1));
+        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(pool, 1));
+    }
+
+    function test_shouldFail_whenPoolIsNotValid() external {
+        address invalidPool = makeAddr("invalidPool");
+
+        vm.expectRevert(abi.encodeWithSelector(PWNCompoundLenderHook.InvalidPoolAddress.selector));
+        vm.prank(loanContract);
+        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(invalidPool));
     }
 
     function testFuzz_shouldWithdrawFromPool(uint256 principal) external {
@@ -80,13 +90,13 @@ contract PWNCompoundLenderHook_OnLoanCreated_Test is PWNCompoundLenderHookTest {
         );
 
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, principal, "");
+        hook.onLoanCreated(lender, creditAddress, principal, abi.encode(pool));
     }
 
     function test_shouldReturnHookValue() external {
         vm.prank(loanContract);
         assertEq(
-            hook.onLoanCreated(lender, creditAddress, 1, ""),
+            hook.onLoanCreated(lender, creditAddress, 1, abi.encode(pool)),
             LENDER_CREATE_HOOK_RETURN_VALUE
         );
     }
@@ -103,19 +113,27 @@ contract PWNCompoundLenderHook_OnLoanRepaid_Test is PWNCompoundLenderHookTest {
     function test_shouldFail_whenMissingInputs() external {
         vm.expectRevert(PWNCompoundLenderHook.LenderZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanRepaid(address(0), creditAddress, 1, "");
+        hook.onLoanRepaid(address(0), creditAddress, 1, abi.encode(pool));
 
         vm.expectRevert(PWNCompoundLenderHook.CreditZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanRepaid(lender, address(0), 1, "");
+        hook.onLoanRepaid(lender, address(0), 1, abi.encode(pool));
 
         vm.expectRevert(PWNCompoundLenderHook.RepaymentZero.selector);
         vm.prank(loanContract);
-        hook.onLoanRepaid(lender, creditAddress, 0, "");
+        hook.onLoanRepaid(lender, creditAddress, 0, abi.encode(pool));
 
-        vm.expectRevert(PWNCompoundLenderHook.DataNotEmpty.selector);
+        vm.expectRevert(PWNCompoundLenderHook.InvalidLenderDataLength.selector);
         vm.prank(loanContract);
-        hook.onLoanRepaid(lender, creditAddress, 1, abi.encode(1));
+        hook.onLoanRepaid(lender, creditAddress, 1, abi.encode(pool, 1));
+    }
+
+    function test_shouldFail_whenPoolIsNotValid() external {
+        address invalidPool = makeAddr("invalidPool");
+
+        vm.expectRevert(abi.encodeWithSelector(PWNCompoundLenderHook.InvalidPoolAddress.selector));
+        vm.prank(loanContract);
+        hook.onLoanRepaid(lender, creditAddress, 1, abi.encode(invalidPool));
     }
 
     function testFuzz_shouldSupplyToPool(uint256 repayment) external {
@@ -128,13 +146,13 @@ contract PWNCompoundLenderHook_OnLoanRepaid_Test is PWNCompoundLenderHookTest {
         );
 
         vm.prank(loanContract);
-        hook.onLoanRepaid(lender, creditAddress, repayment, "");
+        hook.onLoanRepaid(lender, creditAddress, repayment, abi.encode(pool));
     }
 
     function test_shouldReturnHookValue() external {
         vm.prank(loanContract);
         assertEq(
-            hook.onLoanRepaid(lender, creditAddress, 1, ""),
+            hook.onLoanRepaid(lender, creditAddress, 1, abi.encode(pool)),
             LENDER_REPAYMENT_HOOK_RETURN_VALUE
         );
     }

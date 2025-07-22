@@ -65,6 +65,7 @@ contract PWNRefinanceBorrowerCreateHook is IPWNBorrowerCreateHook {
         bytes calldata borrowerData
     ) external returns (bytes32) {
         if (!hub.hasTag(msg.sender, PWNHubTags.ACTIVE_LOAN)) revert CallerNotActiveLoan();
+
         if (borrower == address(0)) revert BorrowerZeroAddress();
         if (creditAddress == address(0)) revert CreditZeroAddress();
         if (principal == 0) revert PrincipalZero();
