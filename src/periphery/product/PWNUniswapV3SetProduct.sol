@@ -183,7 +183,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
     /** @notice Thrown when the duration is less than the minimum allowed duration.*/
     error DurationTooShort();
     /** @notice Thrown when the loan to value is outside of acceptable limits for the proposal.*/
-    error InvalidLoanToValue();
+    error InvalidLoanToValue(uint256 current, uint256 limit);
 
 
     /*----------------------------------------------------------*|
@@ -344,8 +344,9 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         );
 
         // Check if the LTV is below the maximum acceptable LTV
-        if (acceptorValues.creditAmount.mulDiv(10 ** LOAN_TO_VALUE_DECIMALS, lpValue) > proposal.acceptableLoanToValue) {
-            revert InvalidLoanToValue();
+        uint256 ltv = acceptorValues.creditAmount.mulDiv(10 ** LOAN_TO_VALUE_DECIMALS, lpValue);
+        if (ltv > proposal.acceptableLoanToValue) {
+            revert InvalidLoanToValue(ltv, proposal.acceptableLoanToValue);
         }
 
         // Store data for the loan interest, default, and liquidation modules
