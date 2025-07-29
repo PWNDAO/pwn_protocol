@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
+import { Permit2MultiToken, IPermit2Like, Asset } from "MultiToken/Permit2MultiToken.sol";
 
 import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 import { IERC1155Receiver, IERC165 } from "openzeppelin/token/ERC1155/IERC1155Receiver.sol";
@@ -13,7 +13,9 @@ import { IERC1155Receiver, IERC165 } from "openzeppelin/token/ERC1155/IERC1155Re
  * @dev Loan contracts inherits PWN Vault to act as a Vault for its loan type.
  */
 abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
-    using MultiToken for Asset;
+    using Permit2MultiToken for Asset;
+
+    address public immutable permit2;
 
     /*----------------------------------------------------------*|
     |*  # EVENTS DEFINITIONS                                    *|
@@ -40,6 +42,15 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
 
 
     /*----------------------------------------------------------*|
+    |*  # CONSTRUCTOR                                           *|
+    |*----------------------------------------------------------*/
+
+    constructor(address _permit2) {
+        permit2 = _permit2;
+    }
+
+
+    /*----------------------------------------------------------*|
     |*  # TRANSFER FUNCTIONS                                    *|
     |*----------------------------------------------------------*/
 
@@ -49,10 +60,15 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
      * @param asset An asset construct - for a definition see { MultiToken dependency lib }.
      * @param origin Borrower address that is transferring collateral to Vault or repaying a loan.
      */
-    function _pull(Asset memory asset, address origin) internal {
+    function _pull(
+        Asset memory asset,
+        address origin,
+        IPermit2Like.PermitTransferFrom memory permit,
+        bytes memory signature
+    ) internal {
         uint256 originalBalance = asset.balanceOf(address(this));
 
-        asset.transferAssetFrom(origin, address(this));
+        asset.permitTransferAssetFrom(permit2, origin, address(this), permit, signature);
         _checkTransfer({
             asset: asset,
             originalBalance: originalBalance,
@@ -72,7 +88,7 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
     function _push(Asset memory asset, address beneficiary) internal {
         uint256 originalBalance = asset.balanceOf(beneficiary);
 
-        asset.safeTransferAssetFrom(address(this), beneficiary);
+        asset.transferAssetFrom(permit2, address(this), beneficiary);
         _checkTransfer({
             asset: asset,
             originalBalance: originalBalance,
@@ -90,10 +106,16 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
      * @param origin An address of a lender who is providing a loan asset.
      * @param beneficiary An address of the recipient of an asset.
      */
-    function _pushFrom(Asset memory asset, address origin, address beneficiary) internal {
+    function _pushFrom(
+        Asset memory asset,
+        address origin,
+        address beneficiary,
+        IPermit2Like.PermitTransferFrom memory permit,
+        bytes memory signature
+    ) internal {
         uint256 originalBalance = asset.balanceOf(beneficiary);
 
-        asset.safeTransferAssetFrom(origin, beneficiary);
+        asset.permitTransferAssetFrom(permit2, origin, beneficiary, permit, signature);
         _checkTransfer({
             asset: asset,
             originalBalance: originalBalance,
