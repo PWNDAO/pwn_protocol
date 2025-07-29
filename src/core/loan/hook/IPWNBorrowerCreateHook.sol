@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { Asset } from "MultiToken/Asset.sol";
 
 bytes32 constant BORROWER_CREATE_HOOK_RETURN_VALUE = keccak256("PWNBorrowerCreateHook.onLoanCreated");
 
@@ -26,7 +26,7 @@ interface IPWNBorrowerCreateHook {
      */
     function onLoanCreated(
         address borrower,
-        MultiToken.Asset calldata collateral,
+        Asset calldata collateral,
         address creditAddress,
         uint256 principal,
         bytes calldata borrowerData

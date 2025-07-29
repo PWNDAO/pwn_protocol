@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { Asset } from "MultiToken/Asset.sol";
 
 /**
  * @notice Struct defining loan terms.
@@ -15,7 +15,7 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 struct LoanTerms {
     bool isProposerLender;
     bytes32 proposerSpecHash;
-    MultiToken.Asset collateral;
+    Asset collateral;
     address creditAddress;
     uint256 principal;
 }

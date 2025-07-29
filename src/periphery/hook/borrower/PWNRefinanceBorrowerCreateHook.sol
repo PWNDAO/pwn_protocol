@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
@@ -14,7 +14,7 @@ import { PWNLoan, LOANStatus } from "pwn/core/loan/PWNLoan.sol";
  * @notice Borrower create hook for refinancing an existing PWN loan. Ensures the new loan repays the old one and validates collateral and credit consistency.
  */
 contract PWNRefinanceBorrowerCreateHook is IPWNBorrowerCreateHook {
-    using MultiToken for MultiToken.Asset;
+    using MultiToken for Asset;
     using MultiToken for address;
 
     /** @notice Reference to the PWN Hub contract.*/
@@ -59,7 +59,7 @@ contract PWNRefinanceBorrowerCreateHook is IPWNBorrowerCreateHook {
      */
     function onLoanCreated(
         address borrower,
-        MultiToken.Asset calldata collateral,
+        Asset calldata collateral,
         address creditAddress,
         uint256 principal,
         bytes calldata borrowerData
@@ -79,7 +79,7 @@ contract PWNRefinanceBorrowerCreateHook is IPWNBorrowerCreateHook {
         // Note: loan creation will revert if collateral amount is insufficient
 
         uint256 debt = PWNLoan(msg.sender).getLOANDebt(data.refinanceLoanId);
-        MultiToken.Asset memory credit = creditAddress.ERC20(debt);
+        Asset memory credit = creditAddress.ERC20(debt);
         credit.transferAssetFrom(borrower, address(this));
         credit.approveAsset(msg.sender);
         PWNLoan(msg.sender).repay(data.refinanceLoanId, 0);

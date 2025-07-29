@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken, IERC20 } from "MultiToken/MultiToken.sol";
+import { IERC20 } from "openzeppelin/token/ERC20/IERC20.sol";
 
 import { IPWNProposalModule } from "pwn/core/loan/module/IPWNProposalModule.sol";
 import { IPWNProduct } from "pwn/core/product/IPWNProduct.sol";

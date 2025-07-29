@@ -5,12 +5,13 @@ import { Test } from "forge-std/Test.sol";
 
 import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 
+import { MultiToken, Asset, Category } from "MultiToken/MultiToken.sol";
+
 import {
     PWNLoan,
     LOANStatus,
     PWNHubTags,
     Math,
-    MultiToken,
     Terms,
     IPWNBorrowerCreateHook, BORROWER_CREATE_HOOK_RETURN_VALUE,
     IPWNBorrowerCollateralRepaymentHook, BORROWER_COLLATERAL_REPAYMENT_HOOK_RETURN_VALUE,
@@ -30,7 +31,7 @@ import { ReentrancySpy } from "test/helper/ReentrancySpy.sol";
 import { T20 } from "test/helper/T20.sol";
 import { T721 } from "test/helper/T721.sol";
 
-using MultiToken for MultiToken.Asset;
+using MultiToken for Asset;
 using MultiToken for address;
 
 abstract contract PWNLoanTest is Test {
@@ -151,8 +152,8 @@ abstract contract PWNLoanTest is Test {
         nonExistingLoan = PWNLoan.LOAN({
             borrower: address(0),
             lastUpdateTimestamp: 0,
-            collateral: MultiToken.Asset({
-                category: MultiToken.Category(0),
+            collateral: Asset({
+                category: Category(0),
                 assetAddress: address(0),
                 id: 0,
                 amount: 0
@@ -461,7 +462,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         vm.expectRevert(
             abi.encodeWithSelector(
                 PWNLoan.InvalidMultiTokenAsset.selector,
-                uint8(MultiToken.Category.ERC20), terms.creditAddress, 0, terms.principal
+                uint8(Category.ERC20), terms.creditAddress, 0, terms.principal
             )
         );
         vm.prank(borrower);
@@ -684,7 +685,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
     }
 
     function test_shouldTransferCollateral_fromBorrower_toVault() external {
-        terms.collateral.category = MultiToken.Category.ERC20;
+        terms.collateral.category = Category.ERC20;
         terms.collateral.assetAddress = address(fungibleAsset);
         terms.collateral.id = 0;
         terms.collateral.amount = 100;

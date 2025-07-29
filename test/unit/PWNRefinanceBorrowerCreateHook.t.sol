@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import { Test } from "forge-std/Test.sol";
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 
 import { PWNLoan, IPWNProduct } from "pwn/core/loan/PWNLoan.sol";
 import {
@@ -21,7 +21,7 @@ abstract contract PWNRefinanceBorrowerCreateHookTest is Test {
     address borrower = makeAddr("borrower");
     address creditAddress = makeAddr("creditAddress");
     address hub = makeAddr("hub");
-    MultiToken.Asset collateral;
+    Asset collateral;
     uint256 refinancingId = 1;
     PWNLoan.LOAN loan;
 

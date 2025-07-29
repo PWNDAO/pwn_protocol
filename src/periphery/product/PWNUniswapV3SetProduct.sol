@@ -5,7 +5,7 @@ import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 import { Math } from "openzeppelin/utils/math/Math.sol";
 import { SafeCast } from "openzeppelin/utils/math/SafeCast.sol";
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
@@ -34,7 +34,7 @@ import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol
  */
 contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
     using MultiToken for address;
-    using MultiToken for MultiToken.Asset;
+    using MultiToken for Asset;
     using Math for uint256;
     using SafeCast for uint256;
     using UniswapV3 for UniswapV3.Config;
@@ -436,7 +436,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         address borrower,
         uint256 debt,
         address creditAddress,
-        MultiToken.Asset calldata collateral,
+        Asset calldata collateral,
         bytes calldata liquidationData
     ) external returns (uint256 liquidationAmount) {
         if (liquidationData.length != 0) revert LiquidationDataNotEmpty();
@@ -445,7 +445,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         if (data.lltv == 0) revert LoanNotInitialized();
 
         // Cover debt
-        MultiToken.Asset memory credit = creditAddress.ERC20(debt);
+        Asset memory credit = creditAddress.ERC20(debt);
         credit.transferAssetFrom(liquidator, address(this));
         credit.approveAsset(msg.sender);
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken, IMultiTokenCategoryRegistry } from "MultiToken/MultiToken.sol";
+import { MultiToken, IMultiTokenCategoryRegistry, Asset } from "MultiToken/MultiToken.sol";
 
 import { Math } from "openzeppelin/utils/math/Math.sol";
 
@@ -97,7 +97,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     struct LOAN {
         address borrower;
         uint40 lastUpdateTimestamp;
-        MultiToken.Asset collateral;
+        Asset collateral;
         address creditAddress;
         uint256 principal;
         uint256 pastAccruedInterest;
@@ -152,7 +152,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     error InvalidProposerSpecHash(bytes32 current, bytes32 expected);
     /** @notice Thrown when caller is not a vault.*/
     error CallerNotVault();
-    /** @notice Thrown when MultiToken.Asset is invalid because of invalid category, address, id or amount.*/
+    /** @notice Thrown when Asset is invalid because of invalid category, address, id or amount.*/
     error InvalidMultiTokenAsset(uint8 category, address addr, uint256 id, uint256 amount);
     /** @notice Thrown when repayment amount is out of bounds.*/
     error InvalidRepaymentAmount(uint256 current, uint256 limit);
@@ -347,7 +347,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         (uint256 feeAmount, uint256 newLoanAmount) = _calculateFeeAmount(config.fee(), loanTerms.principal);
 
         // Note: `creditHelper` must not be used before updating the amount.
-        MultiToken.Asset memory creditHelper = MultiToken.ERC20(loanTerms.creditAddress, loanTerms.principal);
+        Asset memory creditHelper = MultiToken.ERC20(loanTerms.creditAddress, loanTerms.principal);
 
         // Collect fees
         if (feeAmount > 0) {
@@ -577,7 +577,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
 
         emit LOANRepaymentClaimed({ loanId: loanId, claimedAmount: loan.unclaimedRepayment });
 
-        MultiToken.Asset memory unclaimedCredit = loan.creditAddress.ERC20(loan.unclaimedRepayment);
+        Asset memory unclaimedCredit = loan.creditAddress.ERC20(loan.unclaimedRepayment);
 
         if (loan.principal == 0) {
             // Loan is fully repaid, claiming the unclaimed amount deletes the loan
@@ -756,7 +756,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      * @param asset Asset to be checked.
      * @return True if the asset is valid.
      */
-    function isValidAsset(MultiToken.Asset memory asset) public view returns (bool) {
+    function isValidAsset(Asset memory asset) public view returns (bool) {
         return MultiToken.isValid(asset, categoryRegistry);
     }
 
@@ -765,7 +765,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      * @dev The function will revert if the asset is not valid.
      * @param asset Asset to be checked.
      */
-    function _checkValidAsset(MultiToken.Asset memory asset) private view {
+    function _checkValidAsset(Asset memory asset) private view {
         if (!isValidAsset(asset)) {
             revert InvalidMultiTokenAsset({
                 category: uint8(asset.category),

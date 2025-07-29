@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 
 import { IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNLenderRepaymentHook.sol";
 
@@ -13,7 +13,7 @@ import { IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE } from "pwn
  */
 contract PWNDirectLenderRepaymentHook is IPWNLenderRepaymentHook {
     using MultiToken for address;
-    using MultiToken for MultiToken.Asset;
+    using MultiToken for Asset;
 
     /** @notice Thrown when the lender address is zero.*/
     error LenderZeroAddress();

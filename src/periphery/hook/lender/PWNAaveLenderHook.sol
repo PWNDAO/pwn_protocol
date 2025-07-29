@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
@@ -17,7 +17,7 @@ import { IAaveLike } from "pwn/periphery/interfaces/IAaveLike.sol";
  */
 contract PWNAaveLenderHook is IPWNLenderCreateHook, IPWNLenderRepaymentHook {
     using MultiToken for address;
-    using MultiToken for MultiToken.Asset;
+    using MultiToken for Asset;
 
     /** @notice Minimum health factor required for the lender after withdrawal (scaled by 1e18).*/
     uint256 public constant MIN_HEALTH_FACTOR = 1.2e18;

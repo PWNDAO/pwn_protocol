@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 
 import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 import { IERC1155Receiver, IERC165 } from "openzeppelin/token/ERC1155/IERC1155Receiver.sol";
@@ -13,18 +13,18 @@ import { IERC1155Receiver, IERC165 } from "openzeppelin/token/ERC1155/IERC1155Re
  * @dev Loan contracts inherits PWN Vault to act as a Vault for its loan type.
  */
 abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
-    using MultiToken for MultiToken.Asset;
+    using MultiToken for Asset;
 
     /*----------------------------------------------------------*|
     |*  # EVENTS DEFINITIONS                                    *|
     |*----------------------------------------------------------*/
 
     /** @notice Emitted when asset transfer happens from an `origin` address to a vault.*/
-    event VaultPull(MultiToken.Asset asset, address indexed origin);
+    event VaultPull(Asset asset, address indexed origin);
     /** @notice Emitted when asset transfer happens from a vault to a `beneficiary` address.*/
-    event VaultPush(MultiToken.Asset asset, address indexed beneficiary);
+    event VaultPush(Asset asset, address indexed beneficiary);
     /** @notice Emitted when asset transfer happens from an `origin` address to a `beneficiary` address.*/
-    event VaultPushFrom(MultiToken.Asset asset, address indexed origin, address indexed beneficiary);
+    event VaultPushFrom(Asset asset, address indexed origin, address indexed beneficiary);
 
 
     /*----------------------------------------------------------*|
@@ -49,7 +49,7 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
      * @param asset An asset construct - for a definition see { MultiToken dependency lib }.
      * @param origin Borrower address that is transferring collateral to Vault or repaying a loan.
      */
-    function _pull(MultiToken.Asset memory asset, address origin) internal {
+    function _pull(Asset memory asset, address origin) internal {
         uint256 originalBalance = asset.balanceOf(address(this));
 
         asset.transferAssetFrom(origin, address(this));
@@ -69,7 +69,7 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
      * @param asset An asset construct - for a definition see { MultiToken dependency lib }.
      * @param beneficiary An address of a recipient of an asset.
      */
-    function _push(MultiToken.Asset memory asset, address beneficiary) internal {
+    function _push(Asset memory asset, address beneficiary) internal {
         uint256 originalBalance = asset.balanceOf(beneficiary);
 
         asset.safeTransferAssetFrom(address(this), beneficiary);
@@ -90,7 +90,7 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
      * @param origin An address of a lender who is providing a loan asset.
      * @param beneficiary An address of the recipient of an asset.
      */
-    function _pushFrom(MultiToken.Asset memory asset, address origin, address beneficiary) internal {
+    function _pushFrom(Asset memory asset, address origin, address beneficiary) internal {
         uint256 originalBalance = asset.balanceOf(beneficiary);
 
         asset.safeTransferAssetFrom(origin, beneficiary);
@@ -105,7 +105,7 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
     }
 
     function _checkTransfer(
-        MultiToken.Asset memory asset,
+        Asset memory asset,
         uint256 originalBalance,
         address checkedAddress,
         address counterPartyAddress

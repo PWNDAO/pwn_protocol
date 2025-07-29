@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { Asset } from "MultiToken/Asset.sol";
 
 bytes32 constant BORROWER_COLLATERAL_REPAYMENT_HOOK_RETURN_VALUE = keccak256("PWNBorrowerCollateralRepaymentHook.onLoanRepaid");
 
@@ -36,7 +36,7 @@ interface IPWNBorrowerCollateralRepaymentHook {
      */
     function onLoanRepaid(
         address borrower,
-        MultiToken.Asset calldata collateral,
+        Asset calldata collateral,
         address creditAddress,
         uint256 repayment,
         bytes calldata borrowerData

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
@@ -17,7 +17,7 @@ import { IERC4626Like } from "pwn/periphery/interfaces/IERC4626Like.sol";
  */
 contract PWN4626VaultLenderHook is IPWNLenderCreateHook, IPWNLenderRepaymentHook {
     using MultiToken for address;
-    using MultiToken for MultiToken.Asset;
+    using MultiToken for Asset;
 
     /** @notice Reference to the PWN Hub contract.*/
     PWNHub public immutable hub;

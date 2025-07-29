@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 
 import { Ownable2Step } from "openzeppelin/access/Ownable2Step.sol";
 
@@ -19,7 +19,7 @@ import { ICometLike } from "pwn/periphery/interfaces/ICometLike.sol";
  */
 contract PWNCompoundLenderHook is Ownable2Step, IPWNLenderCreateHook, IPWNLenderRepaymentHook {
     using MultiToken for address;
-    using MultiToken for MultiToken.Asset;
+    using MultiToken for Asset;
 
     /** @notice Reference to the PWN Hub contract.*/
     PWNHub public immutable hub;

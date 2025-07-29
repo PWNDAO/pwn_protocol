@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken } from "MultiToken/MultiToken.sol";
+import { Asset } from "MultiToken/Asset.sol";
 
 /**
  * @title IPWNLiquidationModule
@@ -35,7 +35,7 @@ interface IPWNLiquidationModule {
      * @param borrower The address of the borrower whose loan is being liquidated.
      * @param debt The total outstanding debt of the loan at the time of liquidation.
      * @param creditAddress The address of the credit token used for the loan.
-     * @param collateral The collateral asset being liquidated, represented as a MultiToken.Asset struct.
+     * @param collateral The collateral asset being liquidated, represented as an Asset struct.
      * @param liquidationData Additional data that may be required for custom liquidation logic.
      * @return liquidationAmount The amount of collateral liquidated, which can be less than, greater than, or equal to the debt.
      */
@@ -45,7 +45,7 @@ interface IPWNLiquidationModule {
         address borrower,
         uint256 debt,
         address creditAddress,
-        MultiToken.Asset calldata collateral,
+        Asset calldata collateral,
         bytes calldata liquidationData
     ) external returns (uint256 liquidationAmount);
 }

@@ -3,6 +3,8 @@ pragma solidity 0.8.16;
 
 import { Test } from "forge-std/Test.sol";
 
+import { MultiToken, Category } from "MultiToken/MultiToken.sol";
+
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import {
     PWNUniswapV3SetProduct,
@@ -15,7 +17,6 @@ import {
     IChainlinkAggregatorLike,
     IChainlinkFeedRegistryLike,
     Chainlink,
-    MultiToken,
     decodeChainlinkPriceFeedData
 } from "pwn/periphery/product/PWNUniswapV3SetProduct.sol";
 
@@ -512,7 +513,7 @@ contract PWNUniswapV3SetProductTest_acceptProposal_Test is PWNUniswapV3SetProduc
 
         assertEq(terms.isProposerLender, true);
         assertEq(terms.proposerSpecHash, proposal.proposerSpecHash);
-        assertEq(uint8(terms.collateral.category), uint8(MultiToken.Category.ERC721));
+        assertEq(uint8(terms.collateral.category), uint8(Category.ERC721));
         assertEq(terms.collateral.assetAddress, address(uniswapNFTPositionManager));
         assertEq(terms.collateral.id, acceptorValues.collateralId);
         assertEq(terms.collateral.amount, 0);
