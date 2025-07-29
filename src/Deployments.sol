@@ -89,6 +89,7 @@ abstract contract Deployments is CommonBase {
         IPWNDeployer deployer;
         address deployerSafe;
         bool isL2;
+        address permit2;
         address protocolTimelock;
         address uniswapV3Factory;
         address uniswapV3NFTPositionManager;
