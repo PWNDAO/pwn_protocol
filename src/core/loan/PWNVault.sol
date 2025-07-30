@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { Permit2MultiToken, IPermit2Like, Asset } from "MultiToken/Permit2MultiToken.sol";
+import { Permit2MultiToken, IPermit2Like } from "MultiToken/Permit2MultiToken.sol";
+import { MultiToken } from "MultiToken/MultiToken.sol";
+import { Asset } from "MultiToken/Asset.sol";
 
 import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 import { IERC1155Receiver, IERC165 } from "openzeppelin/token/ERC1155/IERC1155Receiver.sol";
+
+import { Permit } from "pwn/core/loan/Permit.sol";
 
 
 /**
@@ -59,16 +63,20 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
      * @dev The function assumes a prior token approval to a vault address.
      * @param asset An asset construct - for a definition see { MultiToken dependency lib }.
      * @param origin Borrower address that is transferring collateral to Vault or repaying a loan.
+     * @param permit A permit structure containing the permit data for the transfer.
      */
     function _pull(
         Asset memory asset,
         address origin,
-        IPermit2Like.PermitTransferFrom memory permit,
-        bytes memory signature
+        Permit memory permit
     ) internal {
         uint256 originalBalance = asset.balanceOf(address(this));
 
-        asset.permitTransferAssetFrom(permit2, origin, address(this), permit, signature);
+        if (permit.signature.length == 0) {
+            MultiToken.transferAssetFrom(asset, origin, address(this));
+        } else {
+            asset.permitTransferAssetFrom(permit2, origin, address(this), permit.permit, permit.signature);
+        }
         _checkTransfer({
             asset: asset,
             originalBalance: originalBalance,
@@ -105,17 +113,21 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
      * @param asset An asset construct - for a definition see { MultiToken dependency lib }.
      * @param origin An address of a lender who is providing a loan asset.
      * @param beneficiary An address of the recipient of an asset.
+     * @param permit A permit structure containing the permit data for the transfer.
      */
     function _pushFrom(
         Asset memory asset,
         address origin,
         address beneficiary,
-        IPermit2Like.PermitTransferFrom memory permit,
-        bytes memory signature
+        Permit memory permit
     ) internal {
         uint256 originalBalance = asset.balanceOf(beneficiary);
 
-        asset.permitTransferAssetFrom(permit2, origin, beneficiary, permit, signature);
+        if (permit.signature.length == 0) {
+            MultiToken.transferAssetFrom(asset, origin, beneficiary);
+        } else {
+            asset.permitTransferAssetFrom(permit2, origin, beneficiary, permit.permit, permit.signature);
+        }
         _checkTransfer({
             asset: asset,
             originalBalance: originalBalance,

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { MultiToken, IMultiTokenCategoryRegistry, Asset } from "MultiToken/MultiToken.sol";
+import { Permit2MultiToken, IPermit2Like } from "MultiToken/Permit2MultiToken.sol";
+import { IMultiTokenCategoryRegistry } from "MultiToken/interfaces/IMultiTokenCategoryRegistry.sol";
+import { Asset } from "MultiToken/Asset.sol";
 
 import { Math } from "openzeppelin/utils/math/Math.sol";
 
@@ -15,6 +17,7 @@ import { IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE } from "pwn
 import { IPWNProduct } from "pwn/core/product/IPWNProduct.sol";
 import { LOANStatus } from "pwn/core/loan/LOANStatus.sol";
 import { LoanTerms as Terms } from "pwn/core/loan/LoanTerms.sol";
+import { Permit, EMPTY_PERMIT } from "pwn/core/loan/Permit.sol";
 import { PWNProposalManager } from "pwn/core/loan/PWNProposalManager.sol";
 import { PWNVault } from "pwn/core/loan/PWNVault.sol";
 import { IERC5646 } from "pwn/core/token/IERC5646.sol";
@@ -27,7 +30,7 @@ import { PWNLOAN } from "pwn/core/token/PWNLOAN.sol";
  * @dev Acts as a vault for every loan created by this contract.
  */
 contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProvider {
-    using MultiToken for address;
+    using Permit2MultiToken for address;
 
     string public constant VERSION = "1.5";
 
@@ -180,8 +183,9 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         address _hub,
         address _loanToken,
         address _config,
-        address _categoryRegistry
-    ) {
+        address _categoryRegistry,
+        address _permit2
+    ) PWNVault(_permit2) {
         hub = PWNHub(_hub);
         loanToken = PWNLOAN(_loanToken);
         config = PWNConfig(_config);
@@ -219,6 +223,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      * @param proposalSpec Proposal specification struct.
      * @param lenderSpec Lender specification struct.
      * @param borrowerSpec Borrower specification struct.
+     * @param permit Permit data for transferring credit asset to borrower, or collateral to Vault.
      * @param extra Auxiliary data that are emitted in the loan creation event. They are not used in the contract logic.
      * @return loanId Id of the created LOAN token.
      */
@@ -226,6 +231,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         ProposalSpec calldata proposalSpec,
         LenderSpec calldata lenderSpec,
         BorrowerSpec calldata borrowerSpec,
+        Permit memory permit,
         bytes calldata extra
     ) external returns (uint256 loanId) {
         if (msg.sender == proposalSpec.proposer) revert AcceptorIsProposer(msg.sender);
@@ -257,58 +263,60 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         address lender = loanTerms.isProposerLender ? proposalSpec.proposer : msg.sender;
         address borrower = loanTerms.isProposerLender ? msg.sender : proposalSpec.proposer;
 
-        // Transfer LOAN token to lender
-        loanToken.safeTransferFrom(address(this), lender, loanId);
-
-        // Check that provided proposer spec is correct
-        bytes32 proposerSpecHash = loanTerms.isProposerLender
-            ? getLenderSpecHash(lenderSpec)
-            : getBorrowerSpecHash(borrowerSpec);
-        if (proposerSpecHash != loanTerms.proposerSpecHash) {
-            revert InvalidProposerSpecHash({ current: proposerSpecHash, expected: loanTerms.proposerSpecHash });
-        }
-
-        // Check loan credit and collateral validity
-        if (loanTerms.principal == 0) revert ZeroPrincipal();
-        _checkValidAsset(loanTerms.creditAddress.ERC20(loanTerms.principal));
-        _checkValidAsset(loanTerms.collateral);
-
-        // Store loan data under loan id
-        LOAN storage loan = LOANs[loanId];
-        loan.product = proposalSpec.product;
-        loan.borrower = borrower;
-        loan.lastUpdateTimestamp = uint40(block.timestamp);
-        loan.creditAddress = loanTerms.creditAddress;
-        loan.principal = loanTerms.principal;
-        loan.collateral = loanTerms.collateral;
-
-        // Emit event
-        emit LOANCreated({
-            loanId: loanId,
-            proposalHash: proposalHash,
-            product: address(proposalSpec.product),
-            terms: loanTerms,
-            lenderSpec: lenderSpec,
-            borrowerSpec: borrowerSpec,
-            extra: extra
-        });
-
-        // Store lender repayment hook
-        // Note: hook tag check is not required here; would fail on repayment
-        if (address(lenderSpec.repaymentHook) != address(0)) {
-            lenderRepaymentHook[lender][loanId] = LenderRepaymentHookData({
-                hook: lenderSpec.repaymentHook,
-                data: lenderSpec.repaymentHookData
+        {
+            // Emit event
+            emit LOANCreated({
+                loanId: loanId,
+                proposalHash: proposalHash,
+                product: address(proposalSpec.product),
+                terms: loanTerms,
+                lenderSpec: lenderSpec,
+                borrowerSpec: borrowerSpec,
+                extra: extra
             });
-        }
 
-        // Check that loan is not defaulted on creation
-        if (proposalSpec.product.isDefaulted(address(this), loanId)) {
-            revert DefaultedOnCreation();
+            // Transfer LOAN token to lender
+            loanToken.safeTransferFrom(address(this), lender, loanId);
+
+            // Check that provided proposer spec is correct
+            bytes32 proposerSpecHash = loanTerms.isProposerLender
+                ? getLenderSpecHash(lenderSpec)
+                : getBorrowerSpecHash(borrowerSpec);
+            if (proposerSpecHash != loanTerms.proposerSpecHash) {
+                revert InvalidProposerSpecHash({ current: proposerSpecHash, expected: loanTerms.proposerSpecHash });
+            }
+
+            // Check loan credit and collateral validity
+            if (loanTerms.principal == 0) revert ZeroPrincipal();
+            _checkValidAsset(loanTerms.creditAddress.ERC20(loanTerms.principal));
+            _checkValidAsset(loanTerms.collateral);
+
+            // Store loan data under loan id
+            LOAN storage loan = LOANs[loanId];
+            loan.product = proposalSpec.product;
+            loan.borrower = borrower;
+            loan.lastUpdateTimestamp = uint40(block.timestamp);
+            loan.creditAddress = loanTerms.creditAddress;
+            loan.principal = loanTerms.principal;
+            loan.collateral = loanTerms.collateral;
+
+            // Store lender repayment hook
+            // Note: hook tag check is not required here; would fail on repayment
+            if (address(lenderSpec.repaymentHook) != address(0)) {
+                lenderRepaymentHook[lender][loanId] = LenderRepaymentHookData({
+                    hook: lenderSpec.repaymentHook,
+                    data: lenderSpec.repaymentHookData
+                });
+            }
+
+            // Check that loan is not defaulted on creation
+            if (proposalSpec.product.isDefaulted(address(this), loanId)) {
+                revert DefaultedOnCreation();
+            }
         }
 
         // Settle the loan
-        _settleNewLoan(lender, borrower, loanTerms, lenderSpec, borrowerSpec);
+        _settleNewLoan(lender, borrower, loanTerms, lenderSpec, borrowerSpec, msg.sender == lender, permit);
 
         _unlockLoanContext(loanId);
     }
@@ -321,13 +329,17 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      * @param loanTerms Loan terms struct.
      * @param lenderSpec Lender specification struct.
      * @param borrowerSpec Borrower specification struct.
+     * @param callerIsLender True if the caller is a lender, false if a borrower.
+     * @param permit Permit data for transferring credit asset to borrower, or collateral to Vault.
      */
     function _settleNewLoan(
         address lender,
         address borrower,
         Terms memory loanTerms,
         LenderSpec calldata lenderSpec,
-        BorrowerSpec calldata borrowerSpec
+        BorrowerSpec calldata borrowerSpec,
+        bool callerIsLender,
+        Permit memory permit
     ) private {
         // Call lender create hook
         if (address(lenderSpec.createHook) != address(0)) {
@@ -343,21 +355,10 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
             }
         }
 
-        // Calculate fee amount and new loan amount
-        (uint256 feeAmount, uint256 newLoanAmount) = _calculateFeeAmount(config.fee(), loanTerms.principal);
-
-        // Note: `creditHelper` must not be used before updating the amount.
-        Asset memory creditHelper = MultiToken.ERC20(loanTerms.creditAddress, loanTerms.principal);
-
-        // Collect fees
-        if (feeAmount > 0) {
-            creditHelper.amount = feeAmount;
-            _pushFrom(creditHelper, lender, config.feeCollector());
-        }
+        // Note: cannot transfer credit to fee collector and borrower with one permit -> don't collect fees
 
         // Transfer credit to borrower
-        creditHelper.amount = newLoanAmount;
-        _pushFrom(creditHelper, lender, borrower);
+        _pushFrom(loanTerms.creditAddress.ERC20(loanTerms.principal), lender, borrower, callerIsLender ? permit : EMPTY_PERMIT());
 
         // Call borrower create hook
         if (address(borrowerSpec.createHook) != address(0)) {
@@ -366,7 +367,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
                 borrower,
                 loanTerms.collateral,
                 loanTerms.creditAddress,
-                newLoanAmount,
+                loanTerms.principal,
                 borrowerSpec.createHookData
             );
             if (hookReturnValue != BORROWER_CREATE_HOOK_RETURN_VALUE) {
@@ -375,24 +376,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         }
 
         // Transfer collateral to Vault
-        _pull(loanTerms.collateral, borrower);
-    }
-
-    /**
-     * @notice Calculate fee amount.
-     * @param fee Fee value in basis points. Value of 100 is 1% fee.
-     * @param loanAmount Amount of an asset used as a loan credit.
-     * @return feeAmount Amount of a loan asset that represents a protocol fee.
-     * @return newLoanAmount New amount of a loan credit asset, after deducting protocol fee.
-     */
-    function _calculateFeeAmount(
-        uint16 fee,
-        uint256 loanAmount
-    ) internal pure returns (uint256 feeAmount, uint256 newLoanAmount) {
-        if (fee == 0) return (0, loanAmount);
-
-        feeAmount = Math.mulDiv(loanAmount, fee, 1e4);
-        newLoanAmount = loanAmount - feeAmount;
+        _pull(loanTerms.collateral, borrower, callerIsLender ? EMPTY_PERMIT() : permit);
     }
 
 
@@ -407,9 +391,14 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      * @dev The function assumes a prior token approval to Loan contract.
      * @param loanId Id of a loan that is being repaid.
      * @param repaymentAmount Amount of a credit asset to be repaid. Use 0 to repay the whole loan.
+     * @param permit Permit data for transferring credit asset to Vault.
      */
-    function repay(uint256 loanId, uint256 repaymentAmount) external nonLoanContextReentrant(loanId) {
-        _repay(loanId, repaymentAmount, address(0), "");
+    function repay(
+        uint256 loanId,
+        uint256 repaymentAmount,
+        Permit memory permit
+    ) external nonLoanContextReentrant(loanId) {
+        _repay(loanId, repaymentAmount, address(0), "", permit);
     }
 
     /**
@@ -433,14 +422,15 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         // Check that hook is set
         if (address(borrowerHook) == address(0)) revert HookZeroAddress();
 
-        _repay(loanId, 0, address(borrowerHook), borrowerHookData);
+        _repay(loanId, 0, address(borrowerHook), borrowerHookData, EMPTY_PERMIT());
     }
 
     function _repay(
         uint256 loanId,
         uint256 repaymentAmount,
         address borrowerHook,
-        bytes memory borrowerHookData
+        bytes memory borrowerHookData,
+        Permit memory permit
     ) internal {
         LOAN storage loan = LOANs[loanId];
 
@@ -480,7 +470,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         }
 
         // Settle repayment
-        _settleRepayment(loanId, repaymentOrigin, loan.creditAddress, repaymentAmount);
+        _settleRepayment(loanId, repaymentOrigin, loan.creditAddress, repaymentAmount, permit);
 
         // Delete loan if fully repaid and claimed
         if (loan.principal == 0 && loan.unclaimedRepayment == 0) {
@@ -517,7 +507,8 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         uint256 loanId,
         address repaymentOrigin,
         address creditAddress,
-        uint256 repaymentAmount
+        uint256 repaymentAmount,
+        Permit memory permit
     ) internal {
         // Note: Repayment is transferred into the Vault if the hook reverts.
 
@@ -527,12 +518,13 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
             repaymentOrigin: repaymentOrigin,
             loanOwner: loanOwner,
             creditAddress: creditAddress,
-            repaymentAmount: repaymentAmount
+            repaymentAmount: repaymentAmount,
+            permit: permit
         }) {} catch {
             // Update unclaimed repayment amount
             LOANs[loanId].unclaimedRepayment += repaymentAmount;
             // Transfer repayment amount to vault
-            _pull(creditAddress.ERC20(repaymentAmount), repaymentOrigin);
+            _pull(creditAddress.ERC20(repaymentAmount), repaymentOrigin, permit);
         }
     }
 
@@ -541,14 +533,15 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         address repaymentOrigin,
         address loanOwner,
         address creditAddress,
-        uint256 repaymentAmount
+        uint256 repaymentAmount,
+        Permit memory permit
     ) external {
         if (msg.sender != address(this)) revert CallerNotVault();
         if (address(hookData.hook) == address(0)) revert HookZeroAddress();
         _checkHubTag(address(hookData.hook), PWNHubTags.HOOK);
 
         // Transfer repayment to lender repayment hook
-        _pushFrom(creditAddress.ERC20(repaymentAmount), repaymentOrigin, address(hookData.hook));
+        _pushFrom(creditAddress.ERC20(repaymentAmount), repaymentOrigin, address(hookData.hook), permit);
 
         // Call hook and check hooks return value
         bytes32 hookReturnValue = hookData.hook.onLoanRepaid(loanOwner, creditAddress, repaymentAmount, hookData.data);
@@ -639,7 +632,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
             liquidationData: liquidationData
         });
         if (liquidationAmount > 0) {
-            _settleRepayment(loanId, address(product), loan.creditAddress, liquidationAmount);
+            _settleRepayment(loanId, address(product), loan.creditAddress, liquidationAmount, EMPTY_PERMIT());
         }
 
         // Emit liquidation event
@@ -757,7 +750,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      * @return True if the asset is valid.
      */
     function isValidAsset(Asset memory asset) public view returns (bool) {
-        return MultiToken.isValid(asset, categoryRegistry);
+        return Permit2MultiToken.isValid(asset, categoryRegistry);
     }
 
     /**

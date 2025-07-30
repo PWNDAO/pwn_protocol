@@ -6,6 +6,7 @@ import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import { IPWNBorrowerCreateHook, BORROWER_CREATE_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNBorrowerCreateHook.sol";
+import { EMPTY_PERMIT } from "pwn/core/loan/Permit.sol";
 import { PWNLoan, LOANStatus } from "pwn/core/loan/PWNLoan.sol";
 
 
@@ -82,7 +83,7 @@ contract PWNRefinanceBorrowerCreateHook is IPWNBorrowerCreateHook {
         Asset memory credit = creditAddress.ERC20(debt);
         credit.transferAssetFrom(borrower, address(this));
         credit.approveAsset(msg.sender);
-        PWNLoan(msg.sender).repay(data.refinanceLoanId, 0);
+        PWNLoan(msg.sender).repay(data.refinanceLoanId, 0, EMPTY_PERMIT());
 
         // Note: repay will revert if loan not RUNNING
 
