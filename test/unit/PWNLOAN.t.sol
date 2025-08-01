@@ -18,6 +18,7 @@ import {
     IPWNLenderCreateHook, LENDER_CREATE_HOOK_RETURN_VALUE,
     IPWNLenderRepaymentHook, LENDER_REPAYMENT_HOOK_RETURN_VALUE
 } from "pwn/core/loan/PWNLoan.sol";
+import { Permit, IPermit2Like } from "pwn/core/loan/Permit.sol";
 import { PWNSignatureChecker } from "pwn/core/lib/PWNSignatureChecker.sol";
 import {
     IPWNProduct,
@@ -30,6 +31,7 @@ import {
 import { ReentrancySpy } from "test/helper/ReentrancySpy.sol";
 import { T20 } from "test/helper/T20.sol";
 import { T721 } from "test/helper/T721.sol";
+import { DummyPermit2 } from "test/helper/DummyPermit2.sol";
 
 using MultiToken for Asset;
 using MultiToken for address;
@@ -49,6 +51,7 @@ abstract contract PWNLoanTest is Test {
     address categoryRegistry = makeAddr("categoryRegistry");
     address feeCollector = makeAddr("feeCollector");
     IPWNProduct product = IPWNProduct(makeAddr("product"));
+    address permit2 = address(new DummyPermit2());
 
     IPWNBorrowerCreateHook borrowerCreateHook = IPWNBorrowerCreateHook(makeAddr("borrowerCreateHook"));
     IPWNBorrowerCollateralRepaymentHook borrowerCollateralRepaymentHook = IPWNBorrowerCollateralRepaymentHook(makeAddr("borrowerCollateralRepaymentHook"));
@@ -70,9 +73,10 @@ abstract contract PWNLoanTest is Test {
     PWNLoan.ProposalSpec proposalSpec;
     PWNLoan.LenderSpec lenderSpec;
     PWNLoan.BorrowerSpec borrowerSpec;
+    Permit permit;
 
-    T20 fungibleAsset;
-    T721 nonFungibleAsset;
+    T20 credit;
+    T20 collateral;
     ReentrancySpy reentrancySpy = new ReentrancySpy();
 
     event LOANCreated(uint256 indexed loanId, bytes32 indexed proposalHash, address indexed product, Terms terms, PWNLoan.LenderSpec lenderSpec, PWNLoan.BorrowerSpec borrowerSpec, bytes extra);
@@ -88,27 +92,24 @@ abstract contract PWNLoanTest is Test {
         (lender, lenderPK) = makeAddrAndKey("lender");
         (borrower, borrowerPK) = makeAddrAndKey("borrower");
 
-        loanContract = new PWNLoan(hub, loanToken, config, categoryRegistry);
-        fungibleAsset = new T20();
-        nonFungibleAsset = new T721();
+        loanContract = new PWNLoan(hub, loanToken, config, categoryRegistry, permit2);
+        credit = new T20();
+        collateral = new T20();
 
-        fungibleAsset.mint(lender, 1000 ether);
-        fungibleAsset.mint(borrower, 1000 ether);
-        fungibleAsset.mint(address(this), 1000 ether);
-        fungibleAsset.mint(address(loanContract), 1000 ether);
-        nonFungibleAsset.mint(borrower, 2);
+        credit.mint(lender, 1000 ether);
+        credit.mint(borrower, 1000 ether);
+        credit.mint(address(this), 1000 ether);
+        credit.mint(address(loanContract), 1000 ether);
+        collateral.mint(borrower, 20 ether);
 
         vm.prank(lender);
-        fungibleAsset.approve(address(loanContract), type(uint256).max);
-
+        credit.approve(permit2, type(uint256).max);
         vm.prank(borrower);
-        fungibleAsset.approve(address(loanContract), type(uint256).max);
-
+        credit.approve(permit2, type(uint256).max);
         vm.prank(address(this));
-        fungibleAsset.approve(address(loanContract), type(uint256).max);
-
+        credit.approve(permit2, type(uint256).max);
         vm.prank(borrower);
-        nonFungibleAsset.approve(address(loanContract), 2);
+        collateral.approve(permit2, type(uint256).max);
 
         lenderSpec = PWNLoan.LenderSpec({
             createHook: IPWNLenderCreateHook(address(0)),
@@ -133,16 +134,16 @@ abstract contract PWNLoanTest is Test {
         terms = Terms({
             isProposerLender: true,
             proposerSpecHash: bytes32(0),
-            collateral: address(nonFungibleAsset).ERC721(2),
-            creditAddress: address(fungibleAsset),
+            collateral: address(collateral).ERC20(2 ether),
+            creditAddress: address(credit),
             principal: 100 ether
         });
 
         loan = PWNLoan.LOAN({
             borrower: borrower,
             lastUpdateTimestamp: uint40(block.timestamp),
-            collateral: address(nonFungibleAsset).ERC721(2),
-            creditAddress: address(fungibleAsset),
+            collateral: address(collateral).ERC20(2 ether),
+            creditAddress: address(credit),
             principal: 100 ether,
             pastAccruedInterest: 0,
             unclaimedRepayment: 0,
@@ -152,12 +153,7 @@ abstract contract PWNLoanTest is Test {
         nonExistingLoan = PWNLoan.LOAN({
             borrower: address(0),
             lastUpdateTimestamp: 0,
-            collateral: Asset({
-                category: Category(0),
-                assetAddress: address(0),
-                id: 0,
-                amount: 0
-            }),
+            collateral: address(0).ERC20(0),
             creditAddress: address(0),
             principal: 0,
             pastAccruedInterest: 0,
@@ -337,13 +333,13 @@ contract PWNLoan_Create_Test is PWNLoanTest {
     function test_shouldFail_whenAcceptorIsProposer() external {
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.AcceptorIsProposer.selector, lender));
         vm.prank(lender);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldLockAndUnlockLoanContext() external {
         vm.record();
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         bytes32 lockSlot = keccak256(abi.encode(loanId, LOAN_LOCK_SLOT));
         (, bytes32[] memory writes) = vm.accesses(address(loanContract));
@@ -360,7 +356,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         );
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFetchProposalHashData() external {
@@ -368,7 +364,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         vm.expectCall(address(product), abi.encodeWithSelector(IPWNProposalModule.hashProposalTypedData.selector, proposalSpec.proposalData));
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenInvalidSignature() external {
@@ -378,7 +374,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNSignatureChecker.InvalidSignature.selector, proposalSpec.proposer, proposalHash)
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         // Wrong PK
         (, uint256 randomPK) = makeAddrAndKey("random");
@@ -387,7 +383,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNSignatureChecker.InvalidSignature.selector, proposalSpec.proposer, proposalHash)
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         // Wrong proposer
         proposalSpec.proposer = makeAddr("lender2");
@@ -395,7 +391,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNSignatureChecker.InvalidSignature.selector, proposalSpec.proposer, proposalHash)
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function testFuzz_shouldCallProductContract(bytes memory _proposalData) external {
@@ -408,7 +404,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         );
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenCallerLender_whenProposerSpecHashMismatch() external {
@@ -425,7 +421,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNLoan.InvalidProposerSpecHash.selector, borrowerSpecHash, bytes32(0))
         );
         vm.prank(lender);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenCallerBorrower_whenProposerSpecHashMismatch() external {
@@ -440,7 +436,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNLoan.InvalidProposerSpecHash.selector, lenderSpecHash, bytes32(0))
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenZeroPrincipal() external {
@@ -449,7 +445,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
 
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.ZeroPrincipal.selector));
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenInvalidCreditAsset() external {
@@ -466,14 +462,14 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             )
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenInvalidCollateralAsset() external {
         vm.mockCall(
             categoryRegistry,
             abi.encodeWithSignature("registeredCategoryValue(address)", terms.collateral.assetAddress),
-            abi.encode(0)
+            abi.encode(1)
         );
 
         vm.expectRevert(
@@ -486,12 +482,12 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             )
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldStoreLoanData() external {
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         _assertLOANEq(loanId, loan);
     }
@@ -501,7 +497,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         emit LOANCreated(loanId, proposalHash, address(product), terms, lenderSpec, borrowerSpec, "lil extra");
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "lil extra");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "lil extra");
     }
 
     // # Repayment Hook
@@ -516,7 +512,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         _mockLoanTerms(terms);
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         (IPWNLenderRepaymentHook hook, bytes memory hookData) = loanContract.lenderRepaymentHook(lender, loanId);
         assertEq(address(hook), _hook);
@@ -531,7 +527,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         _mockLoanTerms(terms);
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         (IPWNLenderRepaymentHook hook, bytes memory hookData) = loanContract.lenderRepaymentHook(lender, loanId);
         assertEq(address(hook), address(0));
@@ -550,7 +546,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
 
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.DefaultedOnCreation.selector));
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     // # Lender transfers
@@ -571,7 +567,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         );
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenLenderCreateHookNotTaggedInHub() external {
@@ -584,7 +580,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNLoan.AddressMissingHubTag.selector, address(lenderSpec.createHook), PWNHubTags.HOOK)
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenLenderCreateHookReturnsWrongValue() external {
@@ -604,39 +600,25 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNLoan.InvalidHookReturnValue.selector, LENDER_CREATE_HOOK_RETURN_VALUE, wrongReturn)
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
-    function testFuzz_shouldTransferCredit_toBorrowerAndFeeCollector(
-        uint256 fee, uint256 loanAmount
-    ) external {
-        fee = bound(fee, 0, 9999);
+    function testFuzz_shouldTransferCredit_toBorrower(uint256 loanAmount) external {
         loanAmount = bound(loanAmount, 1, 1e40);
 
         terms.principal = loanAmount;
         _mockLoanTerms(terms);
 
-        fungibleAsset.mint(lender, loanAmount);
+        credit.mint(lender, loanAmount);
 
-        vm.mockCall(config, abi.encodeWithSignature("fee()"), abi.encode(fee));
-
-        uint256 feeAmount = Math.mulDiv(loanAmount, fee, 1e4);
-        uint256 newAmount = loanAmount - feeAmount;
-
-        // Fee transfer
-        vm.expectCall({
-            callee: terms.creditAddress,
-            data: abi.encodeWithSignature("transferFrom(address,address,uint256)", lender, feeCollector, feeAmount),
-            count: feeAmount > 0 ? 1 : 0
-        });
         // Updated amount transfer
         vm.expectCall(
             terms.creditAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", lender, borrower, newAmount)
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", lender, borrower, loanAmount)
         );
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     // # Borrower transfers
@@ -654,7 +636,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         );
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenBorrowerCreateHookNotTaggedInHub() external {
@@ -664,7 +646,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNLoan.AddressMissingHubTag.selector, address(borrowerSpec.createHook), PWNHubTags.HOOK)
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldFail_whenBorrowerCreateHookReturnsWrongValue() external {
@@ -681,12 +663,12 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             abi.encodeWithSelector(PWNLoan.InvalidHookReturnValue.selector, BORROWER_CREATE_HOOK_RETURN_VALUE, wrongReturn)
         );
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function test_shouldTransferCollateral_fromBorrower_toVault() external {
         terms.collateral.category = Category.ERC20;
-        terms.collateral.assetAddress = address(fungibleAsset);
+        terms.collateral.assetAddress = address(credit);
         terms.collateral.id = 0;
         terms.collateral.amount = 100;
         _mockLoanTerms(terms);
@@ -699,7 +681,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         );
 
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     function testFuzz_shouldReturnNewLoanId(uint256 _loanId) external {
@@ -707,9 +689,67 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         _mockIsDefaulted(_loanId, false);
 
         vm.prank(borrower);
-        uint256 createdLoanId = loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        uint256 createdLoanId = loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         assertEq(createdLoanId, _loanId);
+    }
+
+    // # Permit
+
+    function test_shouldPermit2TransfeCredit() external {
+        terms.isProposerLender = false;
+        _mockLoanTerms(terms);
+
+        vm.prank(lender);
+        credit.approve(permit2, type(uint256).max);
+
+        permit.permit.permitted.token = address(credit);
+        permit.signature = "signature";
+
+        IPermit2Like.SignatureTransferDetails memory details = IPermit2Like.SignatureTransferDetails(
+            borrower, terms.principal
+        );
+
+        vm.expectCall(
+            permit2,
+            abi.encodeWithSelector(
+                IPermit2Like.permitTransferFrom.selector, permit.permit, details, lender, permit.signature
+            )
+        );
+
+        proposalSpec.proposer = borrower;
+        proposalSpec.signature = _sign(borrowerPK, proposalHash);
+
+        vm.prank(lender);
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
+    }
+
+    function test_shouldPermit2TransferCollateral() external {
+        terms.collateral.category = Category.ERC20;
+        terms.collateral.assetAddress = address(credit);
+        terms.collateral.id = 0;
+        terms.collateral.amount = 100;
+        _mockLoanTerms(terms);
+
+        vm.prank(borrower);
+        credit.approve(permit2, type(uint256).max);
+
+        permit.permit.permitted.token = address(credit);
+        permit.signature = "signature";
+
+        IPermit2Like.SignatureTransferDetails memory details = IPermit2Like.SignatureTransferDetails(
+            address(loanContract), terms.collateral.amount
+        );
+
+        vm.expectCall(
+            permit2,
+            abi.encodeWithSelector(
+                IPermit2Like.permitTransferFrom.selector, permit.permit, details, borrower, permit.signature
+            )
+        );
+
+        vm.prank(borrower);
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
     // # Reentrancy
@@ -718,28 +758,28 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         proposalSpec.product = IPWNProduct(address(reentrancySpy));
 
         // Repay
-        reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.repay.selector, loanId, 0));
+        reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.repay.selector, loanId, 0, permit));
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         // Repay with collateral
         reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.repayWithCollateral.selector, loanId, borrowerCollateralRepaymentHook, ""));
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         // Liquidate
         reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.liquidate.selector, loanId, ""));
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
 
         // Claim repayment
         reentrancySpy.reenter(address(loanContract), abi.encodeWithSelector(PWNLoan.claimRepayment.selector, loanId));
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
         vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
+        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, permit, "");
     }
 
 }
@@ -758,21 +798,20 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
         _mockInterest(loanId, 1 ether);
 
         // Move collateral to vault
-        vm.prank(borrower);
-        nonFungibleAsset.transferFrom(borrower, address(loanContract), 2);
+        collateral.mint(address(loanContract), loan.collateral.amount);
     }
 
 
     function test_shouldFail_whenReenteringLoanContext() external {
         _mockLockedLoanContext(loanId, true);
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanContextLocked.selector, loanId));
-        loanContract.repay(loanId, 0);
+        loanContract.repay(loanId, 0, permit);
     }
 
     function test_shouldFail_whenLoanIsNotRunning() external {
         // Dead
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanNotRunning.selector));
-        loanContract.repay(loanId + 1, 0);
+        loanContract.repay(loanId + 1, 0, permit);
 
         // Repaid
         loan.principal = 0;
@@ -780,7 +819,7 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
         _mockLOAN(loanId, loan);
 
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanNotRunning.selector));
-        loanContract.repay(loanId, 0);
+        loanContract.repay(loanId, 0, permit);
 
         // Defaulted
         loan.principal = 1;
@@ -790,13 +829,13 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
         _mockIsDefaulted(loanId, true);
 
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.LoanNotRunning.selector));
-        loanContract.repay(loanId, 0);
+        loanContract.repay(loanId, 0, permit);
     }
 
     function test_shouldFail_whenRepaymentAmountHigherThanTotalDebt() external {
         uint256 debt = loanContract.getLOANDebt(loanId);
         vm.expectRevert(abi.encodeWithSelector(PWNLoan.InvalidRepaymentAmount.selector, debt + 1, debt));
-        loanContract.repay(loanId, debt + 1);
+        loanContract.repay(loanId, debt + 1, permit);
     }
 
     function test_shouldFetchInterestFromModule() external {
@@ -805,11 +844,11 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
             abi.encodeWithSelector(IPWNInterestModule.interest.selector, address(loanContract), loanId)
         );
 
-        loanContract.repay(loanId, 0);
+        loanContract.repay(loanId, 0, permit);
     }
 
     function test_shouldRepayTotalDebt_whenRepaymentAmountIsZero() external {
-        loanContract.repay(loanId, 0);
+        loanContract.repay(loanId, 0, permit);
 
         assertEq(loanContract.getLOANStatus(loanId), LOANStatus.REPAID);
     }
@@ -818,14 +857,14 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
         vm.expectEmit();
         emit LOANRepaid(loanId, 10 ether, loan.principal + 1 ether - 10 ether); // Note: interest is 1 ether
 
-        loanContract.repay(loanId, 10 ether);
+        loanContract.repay(loanId, 10 ether, permit);
     }
 
     // # Update state
 
     function test_shouldDecreaseLoanDebt() external {
         // Note: current interest is 1 ether
-        loanContract.repay(loanId, 0.6 ether); // only part of accrued interest
+        loanContract.repay(loanId, 0.6 ether, permit); // only part of accrued interest
 
         PWNLoan.LOAN memory updatedLoan = loanContract.getLOAN(loanId);
         assertEq(updatedLoan.principal, loan.principal);
@@ -834,7 +873,7 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
 
         // Note: interest module returns 1 ether
 
-        loanContract.repay(loanId, 1.6 ether); // full interest + part of principal
+        loanContract.repay(loanId, 1.6 ether, permit); // full interest + part of principal
 
         updatedLoan = loanContract.getLOAN(loanId);
         assertEq(updatedLoan.principal, loan.principal - 0.2 ether);
@@ -843,7 +882,7 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
 
         // Note: interest module returns 1 ether
 
-        loanContract.repay(loanId, 51 ether);
+        loanContract.repay(loanId, 51 ether, permit);
 
         updatedLoan = loanContract.getLOAN(loanId);
         assertEq(updatedLoan.principal, loan.principal - 50.2 ether);
@@ -852,7 +891,7 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
 
         // Note: interest module returns 1 ether
 
-        loanContract.repay(loanId, 0.2 ether);
+        loanContract.repay(loanId, 0.2 ether, permit);
 
         updatedLoan = loanContract.getLOAN(loanId);
         assertEq(updatedLoan.principal, loan.principal - 50.2 ether);
@@ -861,7 +900,7 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
 
         // Note: interest module returns 1 ether
 
-        loanContract.repay(loanId, 0);
+        loanContract.repay(loanId, 0, permit);
 
         updatedLoan = loanContract.getLOAN(loanId);
         assertEq(updatedLoan.principal, 0);
@@ -872,35 +911,35 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
     function testFuzz_shouldUpdateLastUpdateTimestamp(uint40 timestamp) external {
         vm.warp(timestamp);
 
-        loanContract.repay(loanId, 1);
+        loanContract.repay(loanId, 1, permit);
 
         assertEq(loanContract.getLOAN(loanId).lastUpdateTimestamp, timestamp);
     }
 
     function test_shouldIncreseUnclaimedRepayment_whenTransferToVault() external {
         vm.prank(borrower);
-        loanContract.repay(loanId, 10 ether);
+        loanContract.repay(loanId, 10 ether, permit);
         assertEq(loanContract.getLOAN(loanId).unclaimedRepayment, 10 ether);
 
         vm.prank(borrower);
-        loanContract.repay(loanId, 4 ether);
+        loanContract.repay(loanId, 4 ether, permit);
         assertEq(loanContract.getLOAN(loanId).unclaimedRepayment, 14 ether);
 
         vm.prank(borrower);
-        loanContract.repay(loanId, 50 ether);
+        loanContract.repay(loanId, 50 ether, permit);
         assertEq(loanContract.getLOAN(loanId).unclaimedRepayment, 64 ether);
     }
 
     function test_shouldNotIncreaseUnclaimedRepayment_whenTransferToLenderRepaymentHook() external {
         vm.prank(borrower);
-        loanContract.repay(loanId, 10 ether);
+        loanContract.repay(loanId, 10 ether, permit);
         assertEq(loanContract.getLOAN(loanId).unclaimedRepayment, 10 ether);
 
         vm.prank(lender);
         loanContract.updateLenderRepaymentHook(loanId, lenderRepaymentHook, "");
 
         vm.prank(borrower);
-        loanContract.repay(loanId, 42 ether);
+        loanContract.repay(loanId, 42 ether, permit);
 
         assertEq(loanContract.getLOAN(loanId).unclaimedRepayment, 10 ether);
     }
@@ -912,7 +951,7 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
         vm.expectCall(loanToken, abi.encodeWithSignature("burn(uint256)", loanId));
 
         vm.prank(borrower);
-        loanContract.repay(loanId, 0);
+        loanContract.repay(loanId, 0, permit);
 
         assertEq(loanContract.getLOANStatus(loanId), LOANStatus.DEAD);
         assertEq(loanContract.getLOAN(loanId).principal, 0);
@@ -922,14 +961,40 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
     // # Collateral
 
     function test_shouldTransferCollateralToBorrower_whenFullRepayment() external {
-        loanContract.repay(loanId, 0);
+        uint256 balance = collateral.balanceOf(borrower);
 
-        assertEq(nonFungibleAsset.ownerOf(loan.collateral.id), borrower);
+        loanContract.repay(loanId, 0, permit);
+
+        assertEq(collateral.balanceOf(borrower), loan.collateral.amount + balance);
     }
 
     // # Repayment
 
-    function testFuzz_shouldTransferRepaymentToVault_whenLenderRepaymentHookNotSet(uint256 repayment) external {
+    function testFuzz_shouldTransferRepaymentToVault_whenLenderRepaymentHookNotSet_whenPermit(uint256 repayment) external {
+        repayment = bound(repayment, 1, loanContract.getLOANDebt(loanId));
+
+        vm.prank(lender);
+        loanContract.updateLenderRepaymentHook(loanId, IPWNLenderRepaymentHook(address(0)), "");
+
+        permit.permit.permitted.token = address(credit);
+        permit.signature = "signature";
+
+        IPermit2Like.SignatureTransferDetails memory details = IPermit2Like.SignatureTransferDetails(
+            address(loanContract), repayment
+        );
+
+        vm.expectCall(
+            permit2,
+            abi.encodeWithSelector(
+                IPermit2Like.permitTransferFrom.selector, permit.permit, details, borrower, permit.signature
+            )
+        );
+
+        vm.prank(borrower);
+        loanContract.repay(loanId, repayment, permit);
+    }
+
+    function testFuzz_shouldTransferRepaymentToVault_whenLenderRepaymentHookNotSet_whenEmptyPermit(uint256 repayment) external {
         repayment = bound(repayment, 1, loanContract.getLOANDebt(loanId));
 
         vm.prank(lender);
@@ -943,7 +1008,7 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
         );
 
         vm.prank(borrower);
-        loanContract.repay(loanId, repayment);
+        loanContract.repay(loanId, repayment, permit);
     }
 
     function testFuzz_shouldTransferRepaymentAndCallLenderRepaymentHook_whenSet(uint256 repayment) external {
@@ -966,7 +1031,7 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
         );
 
         vm.prank(borrower);
-        loanContract.repay(loanId, repayment);
+        loanContract.repay(loanId, repayment, permit);
     }
 
     function testFuzz_shouldTransferRepaymentToVault_whenLenderRepaymentHookSet_whenNotTaggedInHub(uint256 repayment) external {
@@ -984,13 +1049,13 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
             )
         );
 
-        uint256 vaultBalanceBefore = fungibleAsset.balanceOf(address(loanContract));
+        uint256 vaultBalanceBefore = credit.balanceOf(address(loanContract));
 
         vm.prank(borrower);
-        loanContract.repay(loanId, repayment);
+        loanContract.repay(loanId, repayment, permit);
 
-        assertEq(fungibleAsset.balanceOf(address(loanContract)), vaultBalanceBefore + repayment);
-        assertEq(fungibleAsset.balanceOf(address(lenderRepaymentHook)), 0);
+        assertEq(credit.balanceOf(address(loanContract)), vaultBalanceBefore + repayment);
+        assertEq(credit.balanceOf(address(lenderRepaymentHook)), 0);
     }
 
     function testFuzz_shouldTransferRepaymentToVault_whenLenderRepaymentHookSet_whenWrongReturnValue(uint256 repayment) external {
@@ -1040,13 +1105,13 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
             )
         );
 
-        uint256 vaultBalanceBefore = fungibleAsset.balanceOf(address(loanContract));
+        uint256 vaultBalanceBefore = credit.balanceOf(address(loanContract));
 
         vm.prank(borrower);
-        loanContract.repay(loanId, repayment);
+        loanContract.repay(loanId, repayment, permit);
 
-        assertEq(fungibleAsset.balanceOf(address(loanContract)), vaultBalanceBefore + repayment);
-        assertEq(fungibleAsset.balanceOf(address(lenderRepaymentHook)), 0);
+        assertEq(credit.balanceOf(address(loanContract)), vaultBalanceBefore + repayment);
+        assertEq(credit.balanceOf(address(lenderRepaymentHook)), 0);
     }
 
 }
@@ -1065,14 +1130,11 @@ contract PWNLoan_RepayWithCollateral_Test is PWNLoanTest {
         _mockInterest(loanId, 1 ether);
 
         // Move collateral to vault
-        vm.startPrank(borrower);
-        nonFungibleAsset.transferFrom(borrower, address(loanContract), 2);
-        fungibleAsset.approve(address(borrowerCollateralRepaymentHook), type(uint256).max);
-        vm.stopPrank();
+        collateral.mint(address(loanContract), 2 ether);
+        credit.mint(address(borrowerCollateralRepaymentHook), 1000 ether);
 
         vm.prank(address(borrowerCollateralRepaymentHook));
-        fungibleAsset.approve(address(loanContract), type(uint256).max);
-        fungibleAsset.mint(address(borrowerCollateralRepaymentHook), 1000 ether);
+        credit.approve(permit2, type(uint256).max);
     }
 
 
@@ -1102,8 +1164,7 @@ contract PWNLoan_RepayWithCollateral_Test is PWNLoanTest {
         vm.expectCall(
             loan.collateral.assetAddress,
             abi.encodeWithSignature(
-                "safeTransferFrom(address,address,uint256,bytes)",
-                address(loanContract), address(borrowerCollateralRepaymentHook), loan.collateral.id, ""
+                "transfer(address,uint256)", address(borrowerCollateralRepaymentHook), loan.collateral.amount
             )
         );
         vm.expectCall(
@@ -1214,7 +1275,7 @@ contract PWNLoan_TryCallLenderRepaymentHook_Test is PWNLoanTest {
         vm.prank(caller);
         loanContract.tryCallLenderRepaymentHook(
             PWNLoan.LenderRepaymentHookData(lenderRepaymentHook, ""),
-            borrower, lender, loan.creditAddress, 1 ether
+            borrower, lender, loan.creditAddress, 1 ether, permit
         );
     }
 
@@ -1223,7 +1284,7 @@ contract PWNLoan_TryCallLenderRepaymentHook_Test is PWNLoanTest {
         vm.prank(address(loanContract));
         loanContract.tryCallLenderRepaymentHook(
             PWNLoan.LenderRepaymentHookData(IPWNLenderRepaymentHook(address(0)), ""),
-            borrower, lender, loan.creditAddress, 1 ether
+            borrower, lender, loan.creditAddress, 1 ether, permit
         );
     }
 
@@ -1236,7 +1297,7 @@ contract PWNLoan_TryCallLenderRepaymentHook_Test is PWNLoanTest {
         vm.prank(address(loanContract));
         loanContract.tryCallLenderRepaymentHook(
             PWNLoan.LenderRepaymentHookData(lenderRepaymentHook, ""),
-            borrower, lender, loan.creditAddress, 1 ether
+            borrower, lender, loan.creditAddress, 1 ether, permit
         );
     }
 
@@ -1251,7 +1312,7 @@ contract PWNLoan_TryCallLenderRepaymentHook_Test is PWNLoanTest {
         vm.prank(address(loanContract));
         loanContract.tryCallLenderRepaymentHook(
             PWNLoan.LenderRepaymentHookData(lenderRepaymentHook, ""),
-            borrower, lender, loan.creditAddress, 1 ether
+            borrower, lender, loan.creditAddress, 1 ether, permit
         );
     }
 
@@ -1269,17 +1330,17 @@ contract PWNLoan_TryCallLenderRepaymentHook_Test is PWNLoanTest {
         vm.prank(address(loanContract));
         loanContract.tryCallLenderRepaymentHook(
             PWNLoan.LenderRepaymentHookData(lenderRepaymentHook, ""),
-            borrower, lender, loan.creditAddress, 1 ether
+            borrower, lender, loan.creditAddress, 1 ether, permit
         );
     }
 
-    function testFuzz_shouldTransferRepaymentAndCallLenderRepaymentHook(uint256 repayment) external {
+    function testFuzz_shouldTransferRepaymentAndCallLenderRepaymentHook_whenEmptyPermit(uint256 repayment) external {
         repayment = bound(repayment, 1, loanContract.getLOANDebt(loanId));
 
         vm.expectCall(
-            loan.creditAddress,
+            permit2,
             abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)", borrower, address(lenderRepaymentHook), repayment
+                "transferFrom(address,address,uint160,address)", borrower, address(lenderRepaymentHook), repayment, loan.creditAddress
             )
         );
         vm.expectCall(
@@ -1292,7 +1353,37 @@ contract PWNLoan_TryCallLenderRepaymentHook_Test is PWNLoanTest {
         vm.prank(address(loanContract));
         loanContract.tryCallLenderRepaymentHook(
             PWNLoan.LenderRepaymentHookData(lenderRepaymentHook, "hook data"),
-            borrower, lender, loan.creditAddress, repayment
+            borrower, lender, loan.creditAddress, repayment, permit
+        );
+    }
+
+    function testFuzz_shouldTransferRepaymentAndCallLenderRepaymentHook_whenPermit(uint256 repayment) external {
+        repayment = bound(repayment, 1, loanContract.getLOANDebt(loanId));
+
+        permit.permit.permitted.token = loan.creditAddress;
+        permit.signature = "signature";
+
+        IPermit2Like.SignatureTransferDetails memory details = IPermit2Like.SignatureTransferDetails(
+            address(lenderRepaymentHook), repayment
+        );
+
+        vm.expectCall(
+            permit2,
+            abi.encodeWithSelector(
+                IPermit2Like.permitTransferFrom.selector, permit.permit, details, borrower, permit.signature
+            )
+        );
+        vm.expectCall(
+            address(lenderRepaymentHook),
+            abi.encodeWithSelector(
+                IPWNLenderRepaymentHook.onLoanRepaid.selector, lender, loan.creditAddress, repayment, "hook data"
+            )
+        );
+
+        vm.prank(address(loanContract));
+        loanContract.tryCallLenderRepaymentHook(
+            PWNLoan.LenderRepaymentHookData(lenderRepaymentHook, "hook data"),
+            borrower, lender, loan.creditAddress, repayment, permit
         );
     }
 
@@ -1400,12 +1491,11 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
         _mockLiquidation(loanId, 67 ether);
 
         vm.startPrank(address(product));
-        fungibleAsset.mint(address(product), 100 ether); // Mocked liquidation amount
-        fungibleAsset.approve(address(loanContract), type(uint256).max);
+        credit.mint(address(product), 100 ether); // Mocked liquidation amount
+        credit.approve(permit2, type(uint256).max);
         vm.stopPrank();
 
-        vm.prank(borrower);
-        nonFungibleAsset.transferFrom(borrower, address(loanContract), 2);
+        collateral.mint(address(loanContract), 2 ether);
     }
 
 
@@ -1435,10 +1525,7 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
     function test_shouldTransferCollateralToLiquidationModule() external {
         vm.expectCall(
             loan.collateral.assetAddress,
-            abi.encodeWithSignature(
-                "safeTransferFrom(address,address,uint256,bytes)",
-                address(loanContract), address(product), loan.collateral.id, ""
-            )
+            abi.encodeWithSignature("transfer(address,uint256)", address(product), loan.collateral.amount)
         );
 
         loanContract.liquidate(loanId, "");
@@ -1483,10 +1570,10 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
         loanContract.updateLenderRepaymentHook(loanId, IPWNLenderRepaymentHook(address(0)), "");
 
         vm.expectCall(
-            loan.creditAddress,
+            permit2,
             abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)",
-                address(product), address(loanContract), liquidationAmount
+                "transferFrom(address,address,uint160,address)",
+                address(product), address(loanContract), uint160(liquidationAmount), loan.creditAddress
             )
         );
 
@@ -1643,12 +1730,12 @@ contract PWNLoan_Liquidate_Test is PWNLoanTest {
             )
         );
 
-        uint256 vaultBalanceBefore = fungibleAsset.balanceOf(address(loanContract));
+        uint256 vaultBalanceBefore = credit.balanceOf(address(loanContract));
 
         loanContract.liquidate(loanId, "");
 
-        assertEq(fungibleAsset.balanceOf(address(loanContract)), vaultBalanceBefore + liquidationAmount);
-        assertEq(fungibleAsset.balanceOf(address(lenderRepaymentHook)), 0);
+        assertEq(credit.balanceOf(address(loanContract)), vaultBalanceBefore + liquidationAmount);
+        assertEq(credit.balanceOf(address(lenderRepaymentHook)), 0);
     }
 
 }

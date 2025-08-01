@@ -9,7 +9,7 @@ import { PWNLoan, IPWNProduct } from "pwn/core/loan/PWNLoan.sol";
 import {
     PWNRefinanceBorrowerCreateHook,
     IPWNBorrowerCreateHook, BORROWER_CREATE_HOOK_RETURN_VALUE,
-    PWNHub, PWNHubTags
+    PWNHub, PWNHubTags, EMPTY_PERMIT
 } from "pwn/periphery/hook/borrower/PWNRefinanceBorrowerCreateHook.sol";
 
 using MultiToken for address;
@@ -21,6 +21,7 @@ abstract contract PWNRefinanceBorrowerCreateHookTest is Test {
     address borrower = makeAddr("borrower");
     address creditAddress = makeAddr("creditAddress");
     address hub = makeAddr("hub");
+    address permit2 = makeAddr("permit2");
     Asset collateral;
     uint256 refinancingId = 1;
     PWNLoan.LOAN loan;
@@ -49,6 +50,8 @@ abstract contract PWNRefinanceBorrowerCreateHookTest is Test {
 
         _mockGetLOAN(refinancingId, loan);
         _mockLOANDebt(refinancingId, 1e10);
+        vm.mockCall(loanContract, abi.encodeWithSignature("permit2()"), abi.encode(permit2));
+        vm.mockCall(permit2, abi.encodeWithSignature("approve(address,address,uint160,uint48)"), abi.encode(""));
     }
 
     function _mockHubTag(address _contract, bytes32 _tag, bool _set) internal {
@@ -119,12 +122,21 @@ contract PWNRefinanceBorrowerCreateHook_OnLoanCreated_Test is PWNRefinanceBorrow
         hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
     }
 
-    function testFuzz_shouldRepayRefinancingLoan(uint256 debt) external {
+    function test_shouldFail_whenDebtExceedsUint160Limit(uint256 debt) external {
+        debt = bound(debt, uint256(type(uint160).max) + 1, type(uint256).max);
         _mockLOANDebt(refinancingId, debt);
 
-        vm.expectCall(creditAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", borrower, address(hook), debt));
-        vm.expectCall(creditAddress, abi.encodeWithSignature("approve(address,uint256)", loanContract, debt));
-        vm.expectCall(loanContract, abi.encodeWithSignature("repay(uint256,uint256)", refinancingId, 0));
+        vm.expectRevert(PWNRefinanceBorrowerCreateHook.DebtExceedsUint160Limit.selector);
+        vm.prank(loanContract);
+        hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
+    }
+
+    function testFuzz_shouldRepayRefinancingLoan(uint160 debt) external {
+        _mockLOANDebt(refinancingId, debt);
+
+        vm.expectCall(creditAddress, abi.encodeWithSignature("approve(address,uint256)", permit2, debt));
+        vm.expectCall(permit2, abi.encodeWithSignature("approve(address,address,uint160,uint48)", creditAddress, loanContract, debt, block.timestamp));
+        vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.repay.selector, refinancingId, 0, EMPTY_PERMIT()));
 
         vm.prank(loanContract);
         hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId));

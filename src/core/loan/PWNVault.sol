@@ -2,7 +2,6 @@
 pragma solidity 0.8.16;
 
 import { Permit2MultiToken, IPermit2Like } from "MultiToken/Permit2MultiToken.sol";
-import { MultiToken } from "MultiToken/MultiToken.sol";
 import { Asset } from "MultiToken/Asset.sol";
 
 import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
@@ -73,7 +72,7 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
         uint256 originalBalance = asset.balanceOf(address(this));
 
         if (permit.signature.length == 0) {
-            MultiToken.transferAssetFrom(asset, origin, address(this));
+            asset.transferAssetFrom(permit2, origin, address(this));
         } else {
             asset.permitTransferAssetFrom(permit2, origin, address(this), permit.permit, permit.signature);
         }
@@ -124,7 +123,7 @@ abstract contract PWNVault is IERC721Receiver, IERC1155Receiver {
         uint256 originalBalance = asset.balanceOf(beneficiary);
 
         if (permit.signature.length == 0) {
-            MultiToken.transferAssetFrom(asset, origin, beneficiary);
+            asset.transferAssetFrom(permit2, origin, beneficiary);
         } else {
             asset.permitTransferAssetFrom(permit2, origin, beneficiary, permit.permit, permit.signature);
         }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity 0.8.16;
 
-import { PWNVault, MultiToken, Asset, Permit } from "pwn/core/loan/PWNVault.sol";
+import { PWNVault, Asset, Permit } from "pwn/core/loan/PWNVault.sol";
 
 
 contract PWNVaultHarness is PWNVault {

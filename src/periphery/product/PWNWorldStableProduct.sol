@@ -52,7 +52,7 @@ contract PWNWorldStableProduct is IPWNProduct {
     /** @notice PWN Utilized Credit contract.*/
     PWNUtilizedCredit public immutable utilizedCredit;
     /** @dev The World ID instance that will be used for verifying proofs.*/
-	IWorldID internal immutable worldId;
+	IWorldID public immutable worldId;
     /** @dev The contract's external nullifier hash.*/
     uint256 internal immutable externalNullifier;
     /** @dev The World ID group ID (always 1).*/

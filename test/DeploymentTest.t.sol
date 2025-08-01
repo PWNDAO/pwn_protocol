@@ -34,16 +34,16 @@ import { INonfungiblePositionManager } from "pwn/periphery/lib/UniswapV3.sol";
 
 abstract contract DeploymentTest is Deployments, Test {
 
-    uint256 lenderPK = uint256(777);
-    address lender = vm.addr(lenderPK);
-    uint256 borrowerPK = uint256(888);
-    address borrower = vm.addr(borrowerPK);
+    uint256 lenderPK;
+    address lender;
+    uint256 borrowerPK;
+    address borrower;
 
     function setUp() public virtual {
         _loadDeployedAddresses();
 
-        vm.label(lender, "lender");
-        vm.label(borrower, "borrower");
+        (lender, lenderPK) = makeAddrAndKey("lender");
+        (borrower, borrowerPK) = makeAddrAndKey("borrower");
     }
 
     function _sign(uint256 pk, bytes32 digest) internal pure returns (bytes memory) {
@@ -91,7 +91,8 @@ abstract contract DeploymentTest is Deployments, Test {
             address(__d.hub),
             address(__d.loanToken),
             address(__d.config),
-            address(__d.categoryRegistry)
+            address(__d.categoryRegistry),
+            __e.permit2
         );
 
         // Products

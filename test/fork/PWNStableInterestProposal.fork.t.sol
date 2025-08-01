@@ -4,6 +4,7 @@ pragma solidity 0.8.16;
 import { IERC20 } from "openzeppelin/token/ERC20/IERC20.sol";
 
 import { IPWNProposalModule } from "pwn/core/loan/module/IPWNProposalModule.sol";
+import { Permit, IPermit2Like } from "pwn/core/loan/Permit.sol";
 import { IPWNProduct } from "pwn/core/product/IPWNProduct.sol";
 import { IChainlinkAggregatorLike } from "pwn/periphery/lib/Chainlink.sol";
 
@@ -17,11 +18,16 @@ import {
 
 contract PWNStableProductForkTest is DeploymentTest {
 
+    bytes32 public constant PERMIT2_DOMAIN_SEPARATOR = 0x866a5aba21966af95d6c7ab78eb2b2fc913915c28be3b9aa07cc04ff903e3f28;
+    bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
+    bytes32 public constant _PERMIT_TRANSFER_FROM_TYPEHASH = keccak256("PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)");
+
     PWNLoan.ProposalSpec proposalSpec;
     PWNLoan.LenderSpec lenderSpec;
     PWNLoan.BorrowerSpec borrowerSpec;
     PWNStableProduct.Proposal proposal;
     PWNStableProduct.AcceptorValues values;
+    Permit permit;
 
     function setUp() public override virtual {
         vm.createSelectFork("mainnet");
@@ -55,6 +61,9 @@ contract PWNStableProductForkTest is DeploymentTest {
             proposalInclusionProof: new bytes32[](0),
             signature: ""
         });
+
+        permit.permit.nonce = 0;
+        permit.permit.deadline = block.timestamp + 1 days;
     }
 
     function _registerFeed(address base, address quote, address feed) private {
@@ -89,8 +98,19 @@ contract PWNStableProductForkTest is DeploymentTest {
             proposalSpec: proposalSpec,
             lenderSpec: lenderSpec,
             borrowerSpec: borrowerSpec,
+            permit: permit,
             extra: ""
         });
+    }
+
+    function _hashPermit(Permit memory _permit, address spender) internal pure returns (bytes32) {
+        bytes32 tokenPermissionsHash = keccak256(
+            abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, _permit.permit.permitted)
+        );
+        bytes32 typedDataHash = keccak256(
+            abi.encode(_PERMIT_TRANSFER_FROM_TYPEHASH, tokenPermissionsHash, spender, _permit.permit.nonce, _permit.permit.deadline)
+        );
+        return keccak256(abi.encodePacked(hex"1901", PERMIT2_DOMAIN_SEPARATOR, typedDataHash));
     }
 
 
@@ -113,9 +133,16 @@ contract PWNStableProductForkTest is DeploymentTest {
         proposal.availableCreditLimit = 1000 ether;
 
         vm.prank(borrower);
-        WETH.approve(address(__d.loan), type(uint256).max);
-        vm.prank(lender);
-        APE.approve(address(__d.loan), type(uint256).max);
+        WETH.approve(address(__e.permit2), type(uint256).max);
+        vm.startPrank(lender);
+        APE.approve(address(__e.permit2), type(uint256).max);
+        IPermit2Like(__e.permit2).approve(address(APE), address(__d.loan), 1000 ether, uint48(block.timestamp + 1 days));
+        vm.stopPrank();
+
+        permit.permit.permitted.token = address(WETH);
+        permit.permit.permitted.amount = 1000 ether;
+        bytes32 digest = _hashPermit(permit, address(__d.loan));
+        permit.signature = _sign(borrowerPK, digest);
 
         _createLoan(500e18, 6000);
 
@@ -148,12 +175,19 @@ contract PWNStableProductForkTest is DeploymentTest {
         proposal.availableCreditLimit = 1000e6;
 
         vm.prank(borrower);
-        WETH.approve(address(__d.loan), type(uint256).max);
+        WETH.approve(address(__e.permit2), type(uint256).max);
 
         // USDT doesn't return bool and IERC20 interface call fails
-        vm.prank(lender);
-        (bool success, ) = address(USDT).call(abi.encodeWithSignature("approve(address,uint256)", address(__d.loan), type(uint256).max));
+        vm.startPrank(lender);
+        (bool success, ) = address(USDT).call(abi.encodeWithSignature("approve(address,uint256)", address(__e.permit2), type(uint256).max));
         require(success);
+        IPermit2Like(__e.permit2).approve(address(USDT), address(__d.loan), 1000e6, uint48(block.timestamp + 1 days));
+        vm.stopPrank();
+
+        permit.permit.permitted.token = address(WETH);
+        permit.permit.permitted.amount = 1000 ether;
+        bytes32 digest = _hashPermit(permit, address(__d.loan));
+        permit.signature = _sign(borrowerPK, digest);
 
         _createLoan(500e6, 3000);
 
@@ -187,9 +221,16 @@ contract PWNStableProductForkTest is DeploymentTest {
         proposal.availableCreditLimit = 1000 ether;
 
         vm.prank(borrower);
-        WETH.approve(address(__d.loan), type(uint256).max);
-        vm.prank(lender);
-        ARB.approve(address(__d.loan), type(uint256).max);
+        WETH.approve(address(__e.permit2), type(uint256).max);
+        vm.startPrank(lender);
+        ARB.approve(address(__e.permit2), type(uint256).max);
+        IPermit2Like(__e.permit2).approve(address(ARB), address(__d.loan), 1000 ether, uint48(block.timestamp + 1 days));
+        vm.stopPrank();
+
+        permit.permit.permitted.token = address(WETH);
+        permit.permit.permitted.amount = 1000 ether;
+        bytes32 digest = _hashPermit(permit, address(__d.loan));
+        permit.signature = _sign(borrowerPK, digest);
 
         _createLoan(500e18, 8000);
 
@@ -223,12 +264,19 @@ contract PWNStableProductForkTest is DeploymentTest {
         proposal.availableCreditLimit = 1000e6;
 
         vm.prank(borrower);
-        ARB.approve(address(__d.loan), type(uint256).max);
+        ARB.approve(address(__e.permit2), type(uint256).max);
 
         // USDT doesn't return bool and IERC20 interface call fails
-        vm.prank(lender);
-        (bool success, ) = address(USDT).call(abi.encodeWithSignature("approve(address,uint256)", address(__d.loan), type(uint256).max));
+        vm.startPrank(lender);
+        (bool success, ) = address(USDT).call(abi.encodeWithSignature("approve(address,uint256)", address(__e.permit2), type(uint256).max));
         require(success);
+        IPermit2Like(__e.permit2).approve(address(USDT), address(__d.loan), 1000e6, uint48(block.timestamp + 1 days));
+        vm.stopPrank();
+
+        permit.permit.permitted.token = address(ARB);
+        permit.permit.permitted.amount = 3000 ether;
+        bytes32 digest = _hashPermit(permit, address(__d.loan));
+        permit.signature = _sign(borrowerPK, digest);
 
         _createLoan(500e6, 5500);
 
@@ -262,9 +310,16 @@ contract PWNStableProductForkTest is DeploymentTest {
         proposal.availableCreditLimit = 1000 ether;
 
         vm.prank(borrower);
-        WBTC.approve(address(__d.loan), type(uint256).max);
-        vm.prank(lender);
-        WETH.approve(address(__d.loan), type(uint256).max);
+        WBTC.approve(address(__e.permit2), type(uint256).max);
+        vm.startPrank(lender);
+        WETH.approve(address(__e.permit2), type(uint256).max);
+        IPermit2Like(__e.permit2).approve(address(WETH), address(__d.loan), 1000 ether, uint48(block.timestamp + 1 days));
+        vm.stopPrank();
+
+        permit.permit.permitted.token = address(WBTC);
+        permit.permit.permitted.amount = 1000 ether;
+        bytes32 digest = _hashPermit(permit, address(__d.loan));
+        permit.signature = _sign(borrowerPK, digest);
 
         _createLoan(500e18, 7000);
 

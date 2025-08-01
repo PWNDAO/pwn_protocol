@@ -6,7 +6,7 @@ import { MultiToken, Asset } from "MultiToken/MultiToken.sol";
 import { PWNHub } from "pwn/core/hub/PWNHub.sol";
 import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import { IPWNBorrowerCreateHook, BORROWER_CREATE_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNBorrowerCreateHook.sol";
-import { EMPTY_PERMIT } from "pwn/core/loan/Permit.sol";
+import { EMPTY_PERMIT, IPermit2Like } from "pwn/core/loan/Permit.sol";
 import { PWNLoan, LOANStatus } from "pwn/core/loan/PWNLoan.sol";
 
 
@@ -45,6 +45,8 @@ contract PWNRefinanceBorrowerCreateHook is IPWNBorrowerCreateHook {
     error CreditMismatch();
     /** @notice Thrown when the collateral does not match the refinanced loan.*/
     error CollateralMismatch();
+    /** @notice Thrown when the debt exceeds the uint160 limit, preventing permit2 approval.*/
+    error DebtExceedsUint160Limit();
 
 
     constructor(PWNHub _hub) {
@@ -80,9 +82,17 @@ contract PWNRefinanceBorrowerCreateHook is IPWNBorrowerCreateHook {
         // Note: loan creation will revert if collateral amount is insufficient
 
         uint256 debt = PWNLoan(msg.sender).getLOANDebt(data.refinanceLoanId);
+
+        if (debt > type(uint160).max) {
+            // If the debt exceeds uint160, we cannot use permit2 for approval
+            revert DebtExceedsUint160Limit();
+        }
+
         Asset memory credit = creditAddress.ERC20(debt);
         credit.transferAssetFrom(borrower, address(this));
-        credit.approveAsset(msg.sender);
+        address permit2 = PWNLoan(msg.sender).permit2();
+        credit.approveAsset(permit2);
+        IPermit2Like(permit2).approve(creditAddress, msg.sender, uint160(debt), uint48(block.timestamp));
         PWNLoan(msg.sender).repay(data.refinanceLoanId, 0, EMPTY_PERMIT());
 
         // Note: repay will revert if loan not RUNNING
