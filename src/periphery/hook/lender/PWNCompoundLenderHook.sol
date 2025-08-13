@@ -65,6 +65,7 @@ contract PWNCompoundLenderHook is Ownable2Step, IPWNLenderCreateHook, IPWNLender
      * @inheritdoc IPWNLenderCreateHook
      */
     function onLoanCreated(
+        uint256 /* loanId */,
         address lender,
         address creditAddress,
         uint256 principal,

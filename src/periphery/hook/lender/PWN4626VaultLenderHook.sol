@@ -59,6 +59,7 @@ contract PWN4626VaultLenderHook is IPWNLenderCreateHook, IPWNLenderRepaymentHook
      * @inheritdoc IPWNLenderCreateHook
      */
     function onLoanCreated(
+        uint256 /* loanId */,
         address lender,
         address creditAddress,
         uint256 principal,

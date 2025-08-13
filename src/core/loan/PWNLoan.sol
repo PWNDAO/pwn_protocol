@@ -308,7 +308,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         }
 
         // Settle the loan
-        _settleNewLoan(lender, borrower, loanTerms, lenderSpec, borrowerSpec);
+        _settleNewLoan(loanId, lender, borrower, loanTerms, lenderSpec, borrowerSpec);
 
         _unlockLoanContext(loanId);
     }
@@ -316,6 +316,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     /**
      * @notice Transfer collateral to Vault and credit to borrower.
      * @dev The function assumes a prior token approval to a contract address.
+     * @param loanId Id of a loan that is being created.
      * @param lender Address of a lender.
      * @param borrower Address of a borrower.
      * @param loanTerms Loan terms struct.
@@ -323,6 +324,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      * @param borrowerSpec Borrower specification struct.
      */
     function _settleNewLoan(
+        uint256 loanId,
         address lender,
         address borrower,
         Terms memory loanTerms,
@@ -333,6 +335,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         if (address(lenderSpec.createHook) != address(0)) {
             _checkHubTag(address(lenderSpec.createHook), PWNHubTags.HOOK);
             bytes32 hookReturnValue = lenderSpec.createHook.onLoanCreated(
+                loanId,
                 lender,
                 loanTerms.creditAddress,
                 loanTerms.principal,
@@ -363,6 +366,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         if (address(borrowerSpec.createHook) != address(0)) {
             _checkHubTag(address(borrowerSpec.createHook), PWNHubTags.HOOK);
             bytes32 hookReturnValue = borrowerSpec.createHook.onLoanCreated(
+                loanId,
                 borrower,
                 loanTerms.collateral,
                 loanTerms.creditAddress,

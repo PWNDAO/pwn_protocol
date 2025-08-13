@@ -58,6 +58,7 @@ contract PWNRefinanceBorrowerCreateHook is IPWNBorrowerCreateHook {
      * @inheritdoc IPWNBorrowerCreateHook
      */
     function onLoanCreated(
+        uint256 /* loanId */,
         address borrower,
         MultiToken.Asset calldata collateral,
         address creditAddress,

@@ -14,6 +14,7 @@ bytes32 constant LENDER_CREATE_HOOK_RETURN_VALUE = keccak256("PWNLenderCreateHoo
 interface IPWNLenderCreateHook {
     /**
      * @notice Called by PWNLoan at loan origination to execute lender-side custom logic.
+     * @param loanId The ID of the loan being created.
      * @param lender The address of the lender.
      * @param creditAddress The address of the credit token used for the loan.
      * @param principal The principal amount of the loan.
@@ -21,6 +22,7 @@ interface IPWNLenderCreateHook {
      * @return A keccak256 hash of "PWNLenderCreateHook.onLoanCreated".
      */
     function onLoanCreated(
+        uint256 loanId,
         address lender,
         address creditAddress,
         uint256 principal,

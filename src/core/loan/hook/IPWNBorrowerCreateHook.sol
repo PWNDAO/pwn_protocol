@@ -17,6 +17,7 @@ bytes32 constant BORROWER_CREATE_HOOK_RETURN_VALUE = keccak256("PWNBorrowerCreat
 interface IPWNBorrowerCreateHook {
     /**
      * @notice Called by PWNLoan at loan origination to execute borrower-side custom logic.
+     * @param loanId The ID of the loan being created.
      * @param borrower The address of the borrower.
      * @param collateral The collateral asset being provided by the borrower.
      * @param creditAddress The address of the credit token used for the loan.
@@ -25,6 +26,7 @@ interface IPWNBorrowerCreateHook {
      * @return A keccak256 hash of "PWNBorrowerCreateHook.onLoanCreated".
      */
     function onLoanCreated(
+        uint256 loanId,
         address borrower,
         MultiToken.Asset calldata collateral,
         address creditAddress,
