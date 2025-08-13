@@ -31,7 +31,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
     |*  # VARIABLES & CONSTANTS DEFINITIONS                     *|
     |*----------------------------------------------------------*/
 
-    string public constant NAME = "PWN Installemnts Product";
+    string public constant NAME = "PWN Installments Product";
     string public constant VERSION = "1.5";
 
     /** @notice The minimum allowed duration (in seconds) for the default period.*/
@@ -59,7 +59,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
     bytes32 public immutable DOMAIN_SEPARATOR;
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 acceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
+        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 postponement,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
     );
 
     /**
