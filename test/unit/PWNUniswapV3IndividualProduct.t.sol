@@ -195,7 +195,7 @@ abstract contract PWNUniswapV3IndividualProductTest is Test {
 |*  # GET LP VALUE                                          *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3IndividualProductTest_getLPValue_Test is PWNUniswapV3IndividualProductTest {
+contract PWNUniswapV3IndividualProduct_getLPValue_Test is PWNUniswapV3IndividualProductTest {
 
     address[] fid = new address[](0);
     bool[] fif = new bool[](0);
@@ -240,7 +240,7 @@ contract PWNUniswapV3IndividualProductTest_getLPValue_Test is PWNUniswapV3Indivi
 |*  # PROPOSAL MODULE                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3IndividualProductTest_ProposalModule_Test is PWNUniswapV3IndividualProductTest {
+contract PWNUniswapV3IndividualProduct_ProposalModule_Test is PWNUniswapV3IndividualProductTest {
 
     function test_shouldReturnNameAndVersion() external {
         (string memory name, string memory version) = product.nameAndVersion();
@@ -263,7 +263,7 @@ contract PWNUniswapV3IndividualProductTest_ProposalModule_Test is PWNUniswapV3In
 |*  # ACCEPT PROPOSAL                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3IndividualProductTest_acceptProposal_Test is PWNUniswapV3IndividualProductTest {
+contract PWNUniswapV3IndividualProduct_acceptProposal_Test is PWNUniswapV3IndividualProductTest {
 
     function testFuzz_shouldFail_whenCallerIsNotProposedLoanContract(address caller) external {
         vm.assume(caller != loanContract);
@@ -419,7 +419,7 @@ contract PWNUniswapV3IndividualProductTest_acceptProposal_Test is PWNUniswapV3In
 |*  # INTEREST MODULE                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3IndividualProductTest_interest_Test is PWNUniswapV3IndividualProductTest {
+contract PWNUniswapV3IndividualProduct_interest_Test is PWNUniswapV3IndividualProductTest {
 
     function setUp() override public virtual {
         super.setUp();
@@ -489,7 +489,7 @@ contract PWNUniswapV3IndividualProductTest_interest_Test is PWNUniswapV3Individu
 |*  # DEFAULT MODULE                                        *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3IndividualProductTest_isDefaulted_Test is PWNUniswapV3IndividualProductTest {
+contract PWNUniswapV3IndividualProduct_isDefaulted_Test is PWNUniswapV3IndividualProductTest {
 
     function setUp() override public virtual {
         super.setUp();
@@ -529,7 +529,7 @@ contract PWNUniswapV3IndividualProductTest_isDefaulted_Test is PWNUniswapV3Indiv
 |*  # LIQUIDATION MODULE                                    *|
 |*----------------------------------------------------------*/
 
-contract PWNUniswapV3IndividualProductTest_liquidate_Test is PWNUniswapV3IndividualProductTest {
+contract PWNUniswapV3IndividualProduct_liquidate_Test is PWNUniswapV3IndividualProductTest {
 
     function setUp() override public virtual {
         super.setUp();

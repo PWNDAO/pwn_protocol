@@ -173,7 +173,7 @@ abstract contract PWNFixedProductTest is Test {
 |*  # GET COLLATERAL AMOUNT                                 *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedProductTest_getCollateralAmount_Test is PWNFixedProductTest {
+contract PWNFixedProduct_getCollateralAmount_Test is PWNFixedProductTest {
 
     address collAddr = makeAddr("collAddr");
     address credAddr = makeAddr("credAddr");
@@ -230,7 +230,7 @@ contract PWNFixedProductTest_getCollateralAmount_Test is PWNFixedProductTest {
 |*  # PROPOSAL MODULE                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedProductTest_ProposalModule_Test is PWNFixedProductTest {
+contract PWNFixedProduct_ProposalModule_Test is PWNFixedProductTest {
 
     function test_shouldReturnNameAndVersion() external {
         (string memory name, string memory version) = product.nameAndVersion();
@@ -253,7 +253,7 @@ contract PWNFixedProductTest_ProposalModule_Test is PWNFixedProductTest {
 |*  # ACCEPT PROPOSAL                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedProductTest_acceptProposal_Test is PWNFixedProductTest {
+contract PWNFixedProduct_acceptProposal_Test is PWNFixedProductTest {
 
     function testFuzz_shouldFail_whenCallerIsNotProposedLoanContract(address caller) external {
         vm.assume(caller != loanContract);
@@ -476,7 +476,7 @@ contract PWNFixedProductTest_acceptProposal_Test is PWNFixedProductTest {
 |*  # INTEREST MODULE                                       *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedProductTest_interest_Test is PWNFixedProductTest {
+contract PWNFixedProduct_interest_Test is PWNFixedProductTest {
 
     function setUp() override public virtual {
         super.setUp();
@@ -548,7 +548,7 @@ contract PWNFixedProductTest_interest_Test is PWNFixedProductTest {
 |*  # DEFAULT MODULE                                        *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedProductTest_isDefaulted_Test is PWNFixedProductTest {
+contract PWNFixedProduct_isDefaulted_Test is PWNFixedProductTest {
 
     function setUp() override public virtual {
         super.setUp();
@@ -590,7 +590,7 @@ contract PWNFixedProductTest_isDefaulted_Test is PWNFixedProductTest {
 |*  # LIQUIDATION MODULE                                    *|
 |*----------------------------------------------------------*/
 
-contract PWNFixedProductTest_liquidate_Test is PWNFixedProductTest {
+contract PWNFixedProduct_liquidate_Test is PWNFixedProductTest {
 
     function setUp() override public virtual {
         super.setUp();
