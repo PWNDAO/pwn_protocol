@@ -565,7 +565,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             address(lenderCreateHook),
             abi.encodeWithSelector(
                 IPWNLenderCreateHook.onLoanCreated.selector,
-                lender, terms.creditAddress, terms.principal, lenderSpec.createHookData
+                loanId, lender, terms.creditAddress, terms.principal, lenderSpec.createHookData
             )
         );
 
@@ -648,7 +648,7 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             address(borrowerCreateHook),
             abi.encodeWithSelector(
                 IPWNBorrowerCreateHook.onLoanCreated.selector,
-                borrower, terms.collateral, terms.creditAddress, terms.principal, borrowerSpec.createHookData
+                loanId, borrower, terms.collateral, terms.creditAddress, terms.principal, borrowerSpec.createHookData
             )
         );
 

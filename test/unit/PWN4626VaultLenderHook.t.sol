@@ -15,6 +15,7 @@ abstract contract PWN4626VaultLenderHookTest is Test {
 
     PWN4626VaultLenderHook hook;
     address loanContract = makeAddr("loanContract");
+    uint256 loanId = 12;
     address lender = makeAddr("lender");
     address creditAddress = makeAddr("creditAddress");
     address vault = makeAddr("vault");
@@ -51,25 +52,25 @@ contract PWN4626VaultLenderHook_OnLoanCreated_Test is PWN4626VaultLenderHookTest
 
         vm.expectRevert(PWN4626VaultLenderHook.CallerNotActiveLoan.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(vault));
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(vault));
     }
 
     function test_shouldFail_whenMissingInputs() external {
         vm.expectRevert(PWN4626VaultLenderHook.LenderZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(address(0), creditAddress, 1, abi.encode(vault));
+        hook.onLoanCreated(loanId, address(0), creditAddress, 1, abi.encode(vault));
 
         vm.expectRevert(PWN4626VaultLenderHook.CreditZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, address(0), 1, abi.encode(vault));
+        hook.onLoanCreated(loanId, lender, address(0), 1, abi.encode(vault));
 
         vm.expectRevert(PWN4626VaultLenderHook.PrincipalZero.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 0, abi.encode(vault));
+        hook.onLoanCreated(loanId, lender, creditAddress, 0, abi.encode(vault));
 
         vm.expectRevert(PWN4626VaultLenderHook.InvalidLenderDataLength.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(vault, 1));
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(vault, 1));
     }
 
     function test_shouldFail_whenVaultAssetDoesNotMatchCreditAsset() external {
@@ -78,7 +79,7 @@ contract PWN4626VaultLenderHook_OnLoanCreated_Test is PWN4626VaultLenderHookTest
 
         vm.expectRevert(abi.encodeWithSelector(PWN4626VaultLenderHook.InvalidVaultAsset.selector, creditAddress, diffAsset));
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(vault));
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(vault));
     }
 
     function testFuzz_shouldWithdrawFromVault(uint256 principal) external {
@@ -87,13 +88,13 @@ contract PWN4626VaultLenderHook_OnLoanCreated_Test is PWN4626VaultLenderHookTest
         vm.expectCall(vault, abi.encodeWithSelector(IERC4626Like.withdraw.selector, principal, lender, lender));
 
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, principal, abi.encode(vault));
+        hook.onLoanCreated(loanId, lender, creditAddress, principal, abi.encode(vault));
     }
 
     function test_shouldReturnHookValue() external {
         vm.prank(loanContract);
         assertEq(
-            hook.onLoanCreated(lender, creditAddress, 1, abi.encode(vault)),
+            hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(vault)),
             LENDER_CREATE_HOOK_RETURN_VALUE
         );
     }

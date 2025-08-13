@@ -15,6 +15,7 @@ abstract contract PWNCompoundLenderHookTest is Test {
 
     PWNCompoundLenderHook hook;
     address loanContract = makeAddr("loanContract");
+    uint256 loanId = 12;
     address lender = makeAddr("lender");
     address creditAddress = makeAddr("creditAddress");
     address pool = makeAddr("pool");
@@ -52,25 +53,25 @@ contract PWNCompoundLenderHook_OnLoanCreated_Test is PWNCompoundLenderHookTest {
 
         vm.expectRevert(PWNCompoundLenderHook.CallerNotActiveLoan.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(pool));
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(pool));
     }
 
     function test_shouldFail_whenMissingInputs() external {
         vm.expectRevert(PWNCompoundLenderHook.LenderZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(address(0), creditAddress, 1, abi.encode(pool));
+        hook.onLoanCreated(loanId, address(0), creditAddress, 1, abi.encode(pool));
 
         vm.expectRevert(PWNCompoundLenderHook.CreditZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, address(0), 1, abi.encode(pool));
+        hook.onLoanCreated(loanId, lender, address(0), 1, abi.encode(pool));
 
         vm.expectRevert(PWNCompoundLenderHook.PrincipalZero.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 0, abi.encode(pool));
+        hook.onLoanCreated(loanId, lender, creditAddress, 0, abi.encode(pool));
 
         vm.expectRevert(PWNCompoundLenderHook.InvalidLenderDataLength.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(pool, 1));
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(pool, 1));
     }
 
     function test_shouldFail_whenPoolIsNotValid() external {
@@ -78,7 +79,7 @@ contract PWNCompoundLenderHook_OnLoanCreated_Test is PWNCompoundLenderHookTest {
 
         vm.expectRevert(abi.encodeWithSelector(PWNCompoundLenderHook.InvalidPoolAddress.selector));
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(invalidPool));
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(invalidPool));
     }
 
     function testFuzz_shouldWithdrawFromPool(uint256 principal) external {
@@ -90,13 +91,13 @@ contract PWNCompoundLenderHook_OnLoanCreated_Test is PWNCompoundLenderHookTest {
         );
 
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, principal, abi.encode(pool));
+        hook.onLoanCreated(loanId, lender, creditAddress, principal, abi.encode(pool));
     }
 
     function test_shouldReturnHookValue() external {
         vm.prank(loanContract);
         assertEq(
-            hook.onLoanCreated(lender, creditAddress, 1, abi.encode(pool)),
+            hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(pool)),
             LENDER_CREATE_HOOK_RETURN_VALUE
         );
     }

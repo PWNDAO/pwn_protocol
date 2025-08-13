@@ -18,6 +18,7 @@ abstract contract PWNRefinanceBorrowerCreateHookTest is Test {
 
     PWNRefinanceBorrowerCreateHook hook;
     address loanContract = makeAddr("loanContract");
+    uint256 loanId = 12;
     address borrower = makeAddr("borrower");
     address creditAddress = makeAddr("creditAddress");
     address hub = makeAddr("hub");
@@ -77,21 +78,21 @@ contract PWNRefinanceBorrowerCreateHook_OnLoanCreated_Test is PWNRefinanceBorrow
 
         vm.expectRevert(PWNRefinanceBorrowerCreateHook.CallerNotActiveLoan.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
+        hook.onLoanCreated(loanId, borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
     }
 
     function test_shouldFail_whenMissingInputs() external {
         vm.expectRevert(PWNRefinanceBorrowerCreateHook.BorrowerZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(address(0), collateral, creditAddress, 1, abi.encode(refinancingId));
+        hook.onLoanCreated(loanId, address(0), collateral, creditAddress, 1, abi.encode(refinancingId));
 
         vm.expectRevert(PWNRefinanceBorrowerCreateHook.CreditZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(borrower, collateral, address(0), 1, abi.encode(refinancingId));
+        hook.onLoanCreated(loanId, borrower, collateral, address(0), 1, abi.encode(refinancingId));
 
         vm.expectRevert(PWNRefinanceBorrowerCreateHook.PrincipalZero.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(borrower, collateral, creditAddress, 0, abi.encode(refinancingId));
+        hook.onLoanCreated(loanId, borrower, collateral, creditAddress, 0, abi.encode(refinancingId));
     }
 
     function test_shouldFail_whenLoanDoesNotMatchRefinancingLoan() external {
@@ -100,7 +101,7 @@ contract PWNRefinanceBorrowerCreateHook_OnLoanCreated_Test is PWNRefinanceBorrow
 
         vm.expectRevert(abi.encodeWithSelector(PWNRefinanceBorrowerCreateHook.BorrowerMismatch.selector));
         vm.prank(loanContract);
-        hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
+        hook.onLoanCreated(loanId, borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
 
         loan.borrower = borrower;
         loan.creditAddress = makeAddr("anotherCreditAddress");
@@ -108,7 +109,7 @@ contract PWNRefinanceBorrowerCreateHook_OnLoanCreated_Test is PWNRefinanceBorrow
 
         vm.expectRevert(abi.encodeWithSelector(PWNRefinanceBorrowerCreateHook.CreditMismatch.selector));
         vm.prank(loanContract);
-        hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
+        hook.onLoanCreated(loanId, borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
 
         loan.creditAddress = creditAddress;
         loan.collateral = makeAddr("anotherCollateral").ERC20(1000);
@@ -116,7 +117,7 @@ contract PWNRefinanceBorrowerCreateHook_OnLoanCreated_Test is PWNRefinanceBorrow
 
         vm.expectRevert(abi.encodeWithSelector(PWNRefinanceBorrowerCreateHook.CollateralMismatch.selector));
         vm.prank(loanContract);
-        hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
+        hook.onLoanCreated(loanId, borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
     }
 
     function testFuzz_shouldRepayRefinancingLoan(uint256 debt) external {
@@ -127,13 +128,13 @@ contract PWNRefinanceBorrowerCreateHook_OnLoanCreated_Test is PWNRefinanceBorrow
         vm.expectCall(loanContract, abi.encodeWithSignature("repay(uint256,uint256)", refinancingId, 0));
 
         vm.prank(loanContract);
-        hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
+        hook.onLoanCreated(loanId, borrower, collateral, creditAddress, 1, abi.encode(refinancingId));
     }
 
     function test_shouldReturnHookValue() external {
         vm.prank(loanContract);
         assertEq(
-            hook.onLoanCreated(borrower, collateral, creditAddress, 1, abi.encode(refinancingId)),
+            hook.onLoanCreated(loanId, borrower, collateral, creditAddress, 1, abi.encode(refinancingId)),
             BORROWER_CREATE_HOOK_RETURN_VALUE
         );
     }

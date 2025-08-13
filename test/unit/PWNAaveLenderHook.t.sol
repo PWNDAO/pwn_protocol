@@ -15,6 +15,7 @@ abstract contract PWNAaveLenderHookTest is Test {
 
     PWNAaveLenderHook hook;
     address loanContract = makeAddr("loanContract");
+    uint256 loanId = 12;
     address lender = makeAddr("lender");
     address creditAddress = makeAddr("creditAddress");
     address aToken = makeAddr("aToken");
@@ -65,25 +66,25 @@ contract PWNAaveLenderHook_OnLoanCreated_Test is PWNAaveLenderHookTest {
 
         vm.expectRevert(PWNAaveLenderHook.CallerNotActiveLoan.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, "");
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, "");
     }
 
     function test_shouldFail_whenMissingInputs() external {
         vm.expectRevert(PWNAaveLenderHook.LenderZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(address(0), creditAddress, 1, "");
+        hook.onLoanCreated(loanId, address(0), creditAddress, 1, "");
 
         vm.expectRevert(PWNAaveLenderHook.CreditZeroAddress.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, address(0), 1, "");
+        hook.onLoanCreated(loanId, lender, address(0), 1, "");
 
         vm.expectRevert(PWNAaveLenderHook.PrincipalZero.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 0, "");
+        hook.onLoanCreated(loanId, lender, creditAddress, 0, "");
 
         vm.expectRevert(PWNAaveLenderHook.DataNotEmpty.selector);
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, abi.encode(1));
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, abi.encode(1));
     }
 
     function testFuzz_shouldTranseferATokensFromLender(uint256 principal) external {
@@ -92,7 +93,7 @@ contract PWNAaveLenderHook_OnLoanCreated_Test is PWNAaveLenderHookTest {
         vm.expectCall(aToken, abi.encodeWithSignature("transferFrom(address,address,uint256)", lender, address(hook), principal));
 
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, principal, "");
+        hook.onLoanCreated(loanId, lender, creditAddress, principal, "");
     }
 
     function testFuzz_shouldFail_whenHealthFactorIsBelowMin(uint256 healthFactor) external {
@@ -103,7 +104,7 @@ contract PWNAaveLenderHook_OnLoanCreated_Test is PWNAaveLenderHookTest {
             abi.encodeWithSelector(PWNAaveLenderHook.HealthFactorBelowMin.selector, healthFactor, hook.MIN_HEALTH_FACTOR())
         );
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, 1, "");
+        hook.onLoanCreated(loanId, lender, creditAddress, 1, "");
     }
 
     function testFuzz_shouldWithdrawFromPool(uint256 principal) external {
@@ -112,13 +113,13 @@ contract PWNAaveLenderHook_OnLoanCreated_Test is PWNAaveLenderHookTest {
         vm.expectCall(pool, abi.encodeWithSelector(IAaveLike.withdraw.selector, creditAddress, principal, lender));
 
         vm.prank(loanContract);
-        hook.onLoanCreated(lender, creditAddress, principal, "");
+        hook.onLoanCreated(loanId, lender, creditAddress, principal, "");
     }
 
     function test_shouldReturnHookValue() external {
         vm.prank(loanContract);
         assertEq(
-            hook.onLoanCreated(lender, creditAddress, 1, ""),
+            hook.onLoanCreated(loanId, lender, creditAddress, 1, ""),
             LENDER_CREATE_HOOK_RETURN_VALUE
         );
     }
