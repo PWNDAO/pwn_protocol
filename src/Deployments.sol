@@ -20,6 +20,7 @@ import { PWNStableProduct } from "pwn/periphery/product/PWNStableProduct.sol";
 import { PWNFixedProduct } from "pwn/periphery/product/PWNFixedProduct.sol";
 import { PWNUniswapV3IndividualProduct } from "pwn/periphery/product/PWNUniswapV3IndividualProduct.sol";
 import { PWNUniswapV3SetProduct } from "pwn/periphery/product/PWNUniswapV3SetProduct.sol";
+import { PWNWorldStableProduct } from "pwn/periphery/product/PWNWorldStableProduct.sol";
 
 import { PWNRefinanceBorrowerCreateHook } from "pwn/periphery/hook/borrower/PWNRefinanceBorrowerCreateHook.sol";
 import { PWN4626VaultLenderHook } from "pwn/periphery/hook/lender/PWN4626VaultLenderHook.sol";
@@ -54,6 +55,7 @@ abstract contract Deployments is CommonBase {
         PWNFixedProduct _fixed; // Note: `fixed` is a reserved keyword
         PWNUniswapV3IndividualProduct uniswapV3Individual;
         PWNUniswapV3SetProduct uniswapV3Set;
+        PWNWorldStableProduct worldStable;
     }
 
     struct Hooks {
