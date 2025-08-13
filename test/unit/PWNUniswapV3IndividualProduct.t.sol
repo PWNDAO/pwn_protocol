@@ -249,7 +249,7 @@ contract PWNUniswapV3IndividualProductTest_ProposalModule_Test is PWNUniswapV3In
     }
 
     function test_shouldHashProposalTypedData() external {
-        bytes memory proposalData = product.encodeProposalData(proposal);
+        bytes memory proposalData = abi.encode(proposal);
         assertEq(
             product.hashProposalTypedData(proposalData),
             _hashProposalTypedData(proposal)

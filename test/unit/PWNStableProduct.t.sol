@@ -239,7 +239,7 @@ contract PWNStableProductTest_ProposalModule_Test is PWNStableProductTest {
     }
 
     function test_shouldHashProposalTypedData() external {
-        bytes memory proposalData = product.encodeProposalData(proposal, acceptorValues);
+        bytes memory proposalData = abi.encode(proposal);
         assertEq(
             product.hashProposalTypedData(proposalData),
             _hashProposalTypedData(proposal)

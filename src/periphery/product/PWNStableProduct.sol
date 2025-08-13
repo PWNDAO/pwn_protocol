@@ -353,7 +353,7 @@ contract PWNStableProduct is IPWNProduct {
     }
 
     function hashProposalTypedData(bytes calldata proposalData) external pure returns (bytes32) {
-        (Proposal memory proposal, ) = decodeProposalData(proposalData);
+        Proposal memory proposal = abi.decode(proposalData, (Proposal));
         return keccak256(abi.encodePacked(PROPOSAL_TYPEHASH, _erc712EncodeProposal(proposal)));
     }
 
