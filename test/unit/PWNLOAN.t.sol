@@ -1725,6 +1725,10 @@ contract PWNLoan_GetLOANStatus_Test is PWNLoanTest {
 
 contract PWNLoan_GetLOANDebt_Test is PWNLoanTest {
 
+    function test_shouldReturnZero_whenLoanDoesNotExist() external {
+        assertEq(loanContract.getLOANDebt(loanId + 1), 0);
+    }
+
     function test_shouldReturnLoanDebt() external {
         loan.principal = 100 ether;
         loan.unclaimedRepayment = 10 ether; // should be ignored

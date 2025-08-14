@@ -695,6 +695,7 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
      */
     function getLOANDebt(uint256 loanId) public view returns (uint256) {
         LOAN storage loan = LOANs[loanId];
+        if (address(loan.product) == address(0)) return 0; // Note: if loan doesn't exist, return 0
         return loan.principal + loan.pastAccruedInterest + _tryInterest(loanId);
     }
 
