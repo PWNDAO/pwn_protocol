@@ -15,6 +15,7 @@ import {
     PWNLoan,
     PWNLOAN,
     PWNStableProduct,
+    PWNInstallmentsProduct,
     PWNFixedProduct,
     PWNUniswapV3IndividualProduct,
     PWNUniswapV3SetProduct,
@@ -106,6 +107,14 @@ abstract contract DeploymentTest is Deployments, Test {
             IChainlinkAggregatorLike(__e.chainlinkL2SequencerUptimeFeed),
             __e.weth
         );
+        __d.products.installments = new PWNInstallmentsProduct(
+            __d.hub,
+            __d.revokedNonce,
+            __d.utilizedCredit,
+            __d.chainlinkFeedRegistry,
+            IChainlinkAggregatorLike(__e.chainlinkL2SequencerUptimeFeed),
+            __e.weth
+        );
         __d.products._fixed = new PWNFixedProduct(
             __d.hub,
             __d.revokedNonce,
@@ -142,41 +151,47 @@ abstract contract DeploymentTest is Deployments, Test {
         __d.hooks.directLenderRepayment = new PWNDirectLenderRepaymentHook();
 
         // Set hub tags
-        address[] memory addrs = new address[](13);
+        address[] memory addrs = new address[](16);
         addrs[0] = address(__d.loan);
 
         addrs[1] = address(__d.products.stable);
-        addrs[2] = address(__d.products._fixed);
-        addrs[3] = address(__d.products.uniswapV3Individual);
-        addrs[4] = address(__d.products.uniswapV3Set);
+        addrs[2] = address(__d.products.installments);
+        addrs[3] = address(__d.products._fixed);
+        addrs[4] = address(__d.products.uniswapV3Individual);
+        addrs[5] = address(__d.products.uniswapV3Set);
 
-        addrs[5] = address(__d.products.stable);
-        addrs[6] = address(__d.products._fixed);
-        addrs[7] = address(__d.products.uniswapV3Set);
+        addrs[6] = address(__d.products.stable);
+        addrs[7] = address(__d.products.installments);
+        addrs[8] = address(__d.products._fixed);
+        addrs[9] = address(__d.products.uniswapV3Individual);
+        addrs[10] = address(__d.products.uniswapV3Set);
 
-        addrs[8] = address(__d.hooks.refinanceBorrowerCreate);
-        addrs[9] = address(__d.hooks.vaultLender);
-        addrs[10] = address(__d.hooks.aaveLender);
-        addrs[11] = address(__d.hooks.compoundLender);
-        addrs[12] = address(__d.hooks.directLenderRepayment);
+        addrs[11] = address(__d.hooks.refinanceBorrowerCreate);
+        addrs[12] = address(__d.hooks.vaultLender);
+        addrs[13] = address(__d.hooks.aaveLender);
+        addrs[14] = address(__d.hooks.compoundLender);
+        addrs[15] = address(__d.hooks.directLenderRepayment);
 
-        bytes32[] memory tags = new bytes32[](13);
+        bytes32[] memory tags = new bytes32[](16);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
 
         tags[1] = PWNHubTags.NONCE_MANAGER;
         tags[2] = PWNHubTags.NONCE_MANAGER;
         tags[3] = PWNHubTags.NONCE_MANAGER;
         tags[4] = PWNHubTags.NONCE_MANAGER;
+        tags[5] = PWNHubTags.NONCE_MANAGER;
 
-        tags[5] = PWNHubTags.LOAN_PROPOSAL;
         tags[6] = PWNHubTags.LOAN_PROPOSAL;
         tags[7] = PWNHubTags.LOAN_PROPOSAL;
+        tags[8] = PWNHubTags.LOAN_PROPOSAL;
+        tags[9] = PWNHubTags.LOAN_PROPOSAL;
+        tags[10] = PWNHubTags.LOAN_PROPOSAL;
 
-        tags[8] = PWNHubTags.HOOK;
-        tags[9] = PWNHubTags.HOOK;
-        tags[10] = PWNHubTags.HOOK;
         tags[11] = PWNHubTags.HOOK;
         tags[12] = PWNHubTags.HOOK;
+        tags[13] = PWNHubTags.HOOK;
+        tags[14] = PWNHubTags.HOOK;
+        tags[15] = PWNHubTags.HOOK;
 
         vm.prank(__e.protocolTimelock);
         __d.hub.setTags(addrs, tags, true);

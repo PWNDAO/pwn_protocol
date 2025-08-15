@@ -17,6 +17,7 @@ import { IChainlinkFeedRegistryLike } from "pwn/periphery/interfaces/IChainlinkF
 import { IChainlinkAggregatorLike } from "pwn/periphery/interfaces/IChainlinkAggregatorLike.sol";
 
 import { PWNStableProduct } from "pwn/periphery/product/PWNStableProduct.sol";
+import { PWNInstallmentsProduct } from "pwn/periphery/product/PWNInstallmentsProduct.sol";
 import { PWNFixedProduct } from "pwn/periphery/product/PWNFixedProduct.sol";
 import { PWNUniswapV3IndividualProduct } from "pwn/periphery/product/PWNUniswapV3IndividualProduct.sol";
 import { PWNUniswapV3SetProduct } from "pwn/periphery/product/PWNUniswapV3SetProduct.sol";
@@ -51,7 +52,8 @@ abstract contract Deployments is CommonBase {
 
     struct Products {
         PWNStableProduct stable;
-        PWNFixedProduct _fixed; // Note: `fixed` is a reserved keyword
+        PWNInstallmentsProduct installments;
+        PWNFixedProduct _fixed; // Note: `fixed` is a reserved keyword (might need to be first to be alphabetically ordered)
         PWNUniswapV3IndividualProduct uniswapV3Individual;
         PWNUniswapV3SetProduct uniswapV3Set;
     }
