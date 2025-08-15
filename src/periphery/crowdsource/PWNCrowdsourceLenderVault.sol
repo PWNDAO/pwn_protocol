@@ -287,7 +287,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     function _claimLoanIfPossible() internal {
         if (stage() == Stage.RUNNING) {
             uint8 status = loanContract.getLOANStatus(loanId);
-            if (status == LOANStatus.REPAID || status == LOANStatus.DEFAULTED) {
+            if (status != LOANStatus.RUNNING) {
                 loanEnded = true;
             }
             if (status == LOANStatus.DEFAULTED) {
