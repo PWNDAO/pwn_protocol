@@ -4,6 +4,7 @@ pragma solidity 0.8.16;
 import { MultiToken } from "MultiToken/MultiToken.sol";
 
 import { ERC4626, ERC20, IERC20, IERC20Metadata, Math, SafeERC20 } from "openzeppelin/token/ERC20/extensions/ERC4626.sol";
+import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 
 import {
     PWNLoan, LOANStatus, PWNLOAN,
@@ -18,7 +19,7 @@ import { IAaveLike } from "pwn/periphery/interfaces/IAaveLike.sol";
  * @title PWNCrowdsourceLenderVault
  * @notice A vault that pools assets to lend through a PWNLoan contract.
  */
-contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderRepaymentHook {
+contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderRepaymentHook, IERC721Receiver {
     using Math for uint256;
 
     /** @notice The PWNLoan contract through which the loan is created.*/
@@ -378,6 +379,25 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
         // Note: no need to validate anything, the hook only accepts repayments
         // This guarantees that the loan unclaimed amount is always zero
         return LENDER_REPAYMENT_HOOK_RETURN_VALUE;
+    }
+
+
+    /*----------------------------------------------------------*|
+    |*  # ERC721 ON RECEIVED                                    *|
+    |*----------------------------------------------------------*/
+
+    /** @inheritdoc IERC721Receiver*/
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 /* tokenId */,
+        bytes calldata /* data */
+    ) external view returns (bytes4) {
+        require(stage() == Stage.POOLING);
+        require(operator == address(loanContract));
+        require(from == address(loanContract));
+
+        return IERC721Receiver.onERC721Received.selector;
     }
 
 
