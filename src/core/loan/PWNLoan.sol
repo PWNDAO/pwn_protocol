@@ -6,8 +6,6 @@ import { MultiToken, IMultiTokenCategoryRegistry } from "MultiToken/MultiToken.s
 import { Math } from "openzeppelin/utils/math/Math.sol";
 
 import { PWNConfig } from "pwn/core/config/PWNConfig.sol";
-import { PWNHub } from "pwn/core/hub/PWNHub.sol";
-import { PWNHubTags } from "pwn/core/hub/PWNHubTags.sol";
 import { IPWNBorrowerCreateHook, BORROWER_CREATE_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNBorrowerCreateHook.sol";
 import { IPWNBorrowerCollateralRepaymentHook, BORROWER_COLLATERAL_REPAYMENT_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNBorrowerCollateralRepaymentHook.sol";
 import { IPWNLenderCreateHook, LENDER_CREATE_HOOK_RETURN_VALUE } from "pwn/core/loan/hook/IPWNLenderCreateHook.sol";
@@ -38,7 +36,6 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     bytes32 internal constant _EMPTY_LENDER_SPEC_HASH = keccak256(abi.encode(LenderSpec(IPWNLenderCreateHook(address(0)), "", IPWNLenderRepaymentHook(address(0)), "")));
     bytes32 internal constant _EMPTY_BORROWER_SPEC_HASH = keccak256(abi.encode(BorrowerSpec(IPWNBorrowerCreateHook(address(0)), "")));
 
-    PWNHub public immutable hub;
     PWNLOAN public immutable loanToken;
     PWNConfig public immutable config;
     IMultiTokenCategoryRegistry public immutable categoryRegistry;
@@ -140,8 +137,6 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
 
     /** @notice Thrown when a call tries to enter locked loan context.*/
     error LoanContextLocked(uint256 loanId);
-    /** @notice Thrown when an address is missing a PWN Hub tag.*/
-    error AddressMissingHubTag(address addr, bytes32 tag);
     /** @notice Thrown when managed loan is not running.*/
     error LoanNotRunning();
     /** @notice Thrown when managed loan is not defaulted.*/
@@ -177,12 +172,10 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     |*----------------------------------------------------------*/
 
     constructor(
-        address _hub,
         address _loanToken,
         address _config,
         address _categoryRegistry
     ) {
-        hub = PWNHub(_hub);
         loanToken = PWNLOAN(_loanToken);
         config = PWNConfig(_config);
         categoryRegistry = IMultiTokenCategoryRegistry(_categoryRegistry);
@@ -333,7 +326,6 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     ) private {
         // Call lender create hook
         if (address(lenderSpec.createHook) != address(0)) {
-            _checkHubTag(address(lenderSpec.createHook), PWNHubTags.HOOK);
             bytes32 hookReturnValue = lenderSpec.createHook.onLoanCreated(
                 loanId,
                 lender,
@@ -364,7 +356,6 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
 
         // Call borrower create hook
         if (address(borrowerSpec.createHook) != address(0)) {
-            _checkHubTag(address(borrowerSpec.createHook), PWNHubTags.HOOK);
             bytes32 hookReturnValue = borrowerSpec.createHook.onLoanCreated(
                 loanId,
                 borrower,
@@ -498,9 +489,6 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         address borrowerHook,
         bytes memory borrowerHookData
     ) internal {
-        // Check that hook has PWN Hub tag
-        _checkHubTag(borrowerHook, PWNHubTags.HOOK);
-
         // Transfer collateral to borrower hook
         _push(loan.collateral, borrowerHook);
 
@@ -549,7 +537,6 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     ) external {
         if (msg.sender != address(this)) revert CallerNotVault();
         if (address(hookData.hook) == address(0)) revert HookZeroAddress();
-        _checkHubTag(address(hookData.hook), PWNHubTags.HOOK);
 
         // Transfer repayment to lender repayment hook
         _pushFrom(creditAddress.ERC20(repaymentAmount), repaymentOrigin, address(hookData.hook));
@@ -745,7 +732,6 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
         if (address(newHook) == address(0)) {
             delete lenderRepaymentHook[msg.sender][loanId];
         } else {
-            _checkHubTag(address(newHook), PWNHubTags.HOOK);
             lenderRepaymentHook[msg.sender][loanId] = LenderRepaymentHookData(newHook, newHookData);
         }
     }
@@ -823,12 +809,6 @@ contract PWNLoan is PWNProposalManager, PWNVault, IERC5646, IPWNLoanMetadataProv
     /*----------------------------------------------------------*|
     |*  # UTILS                                                 *|
     |*----------------------------------------------------------*/
-
-    function _checkHubTag(address addr, bytes32 tag) internal view {
-        if (!hub.hasTag(addr, tag)) {
-            revert AddressMissingHubTag({ addr: addr, tag: tag });
-        }
-    }
 
     function _tryIsDefaulted(uint256 loanId) internal view returns (bool) {
         try LOANs[loanId].product.isDefaulted(address(this), loanId) returns (bool isDefaulted) {

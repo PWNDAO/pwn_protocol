@@ -127,9 +127,6 @@ contract PWNCrowdsourceLenderVaultForkTest is DeploymentTest {
         acceptorValues = PWNInstallmentsProduct.AcceptorValues({
             creditAmount: 180_000 * 10 ** decimals
         });
-
-        vm.prank(__e.protocolTimelock);
-        __d.hub.setTag(address(lenderVault), PWNHubTags.HOOK, true);
     }
 
 }

@@ -8,7 +8,6 @@ import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
 import {
     PWNLoan,
     LOANStatus,
-    PWNHubTags,
     Math,
     MultiToken,
     Terms,
@@ -42,7 +41,6 @@ abstract contract PWNLoanTest is Test {
     bytes32 internal constant LOAN_LOCK_SLOT = bytes32(uint256(4)); // `loanLock` mapping position
 
     PWNLoan loanContract;
-    address hub = makeAddr("hub");
     address loanToken = makeAddr("loanToken");
     address config = makeAddr("config");
     address categoryRegistry = makeAddr("categoryRegistry");
@@ -80,14 +78,13 @@ abstract contract PWNLoanTest is Test {
     event LOANLiquidated(uint256 indexed loanId, address indexed liquidator, uint256 liquidationAmount);
 
     function setUp() virtual public {
-        vm.etch(hub, bytes("data"));
         vm.etch(loanToken, bytes("data"));
         vm.etch(config, bytes("data"));
 
         (lender, lenderPK) = makeAddrAndKey("lender");
         (borrower, borrowerPK) = makeAddrAndKey("borrower");
 
-        loanContract = new PWNLoan(hub, loanToken, config, categoryRegistry);
+        loanContract = new PWNLoan(loanToken, config, categoryRegistry);
         fungibleAsset = new T20();
         nonFungibleAsset = new T721();
 
@@ -172,12 +169,6 @@ abstract contract PWNLoanTest is Test {
 
         vm.mockCall(config, abi.encodeWithSignature("fee()"), abi.encode(0));
         vm.mockCall(config, abi.encodeWithSignature("feeCollector()"), abi.encode(feeCollector));
-
-        vm.mockCall(hub, abi.encodeWithSignature("hasTag(address,bytes32)"), abi.encode(false));
-        _mockHubTag(address(lenderCreateHook), PWNHubTags.HOOK);
-        _mockHubTag(address(lenderRepaymentHook), PWNHubTags.HOOK);
-        _mockHubTag(address(borrowerCreateHook), PWNHubTags.HOOK);
-        _mockHubTag(address(borrowerCollateralRepaymentHook), PWNHubTags.HOOK);
 
         vm.mockCall(
             address(lenderCreateHook),
@@ -267,14 +258,6 @@ abstract contract PWNLoanTest is Test {
 
     function _mockLOANTokenOwner(uint256 _loanId, address _owner) internal {
         vm.mockCall(loanToken, abi.encodeWithSignature("ownerOf(uint256)", _loanId), abi.encode(_owner));
-    }
-
-    function _mockHubTag(address _contract, bytes32 _tag) internal {
-        _mockHubTag(_contract, _tag, true);
-    }
-
-    function _mockHubTag(address _contract, bytes32 _tag, bool _set) internal {
-        vm.mockCall(hub, abi.encodeWithSignature("hasTag(address,bytes32)", _contract, _tag), abi.encode(_set));
     }
 
     function _mockIsDefaulted(uint256 _loanId, bool _defaulted) internal {
@@ -573,19 +556,6 @@ contract PWNLoan_Create_Test is PWNLoanTest {
         loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
     }
 
-    function test_shouldFail_whenLenderCreateHookNotTaggedInHub() external {
-        lenderSpec.createHook = IPWNLenderCreateHook(makeAddr("not tagged lender create hook"));
-
-        terms.proposerSpecHash = loanContract.getLenderSpecHash(lenderSpec);
-        _mockLoanTerms(terms);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(PWNLoan.AddressMissingHubTag.selector, address(lenderSpec.createHook), PWNHubTags.HOOK)
-        );
-        vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
-    }
-
     function test_shouldFail_whenLenderCreateHookReturnsWrongValue() external {
         lenderSpec.createHook = lenderCreateHook;
 
@@ -652,16 +622,6 @@ contract PWNLoan_Create_Test is PWNLoanTest {
             )
         );
 
-        vm.prank(borrower);
-        loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
-    }
-
-    function test_shouldFail_whenBorrowerCreateHookNotTaggedInHub() external {
-        borrowerSpec.createHook = IPWNBorrowerCreateHook(makeAddr("not tagged lender create hook"));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(PWNLoan.AddressMissingHubTag.selector, address(borrowerSpec.createHook), PWNHubTags.HOOK)
-        );
         vm.prank(borrower);
         loanContract.create(proposalSpec, lenderSpec, borrowerSpec, "");
     }
@@ -968,30 +928,6 @@ contract PWNLoan_Repay_Test is PWNLoanTest {
         loanContract.repay(loanId, repayment);
     }
 
-    function testFuzz_shouldTransferRepaymentToVault_whenLenderRepaymentHookSet_whenNotTaggedInHub(uint256 repayment) external {
-        repayment = bound(repayment, 1, loanContract.getLOANDebt(loanId));
-
-        vm.prank(lender);
-        loanContract.updateLenderRepaymentHook(loanId, lenderRepaymentHook, "");
-
-        _mockHubTag(address(lenderRepaymentHook), PWNHubTags.HOOK, false);
-
-        vm.expectCall(
-            loan.creditAddress,
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)", borrower, address(loanContract), repayment
-            )
-        );
-
-        uint256 vaultBalanceBefore = fungibleAsset.balanceOf(address(loanContract));
-
-        vm.prank(borrower);
-        loanContract.repay(loanId, repayment);
-
-        assertEq(fungibleAsset.balanceOf(address(loanContract)), vaultBalanceBefore + repayment);
-        assertEq(fungibleAsset.balanceOf(address(lenderRepaymentHook)), 0);
-    }
-
     function testFuzz_shouldTransferRepaymentToVault_whenLenderRepaymentHookSet_whenWrongReturnValue(uint256 repayment) external {
         repayment = bound(repayment, 1, loanContract.getLOANDebt(loanId));
 
@@ -1117,16 +1053,6 @@ contract PWNLoan_RepayWithCollateral_Test is PWNLoanTest {
         loanContract.repayWithCollateral(loanId, borrowerCollateralRepaymentHook, "hook data");
     }
 
-    function test_shouldFail_whenBorrowerCollateralRepaymentHookNotTaggedInHub() external {
-        IPWNBorrowerCollateralRepaymentHook hook = IPWNBorrowerCollateralRepaymentHook(makeAddr("not tagged hook"));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(PWNLoan.AddressMissingHubTag.selector, address(hook), PWNHubTags.HOOK)
-        );
-        vm.prank(borrower);
-        loanContract.repayWithCollateral(loanId, hook, "");
-    }
-
     function test_shouldFail_whenBorrowerCollateralRepaymentHookReturnsWrongValue() external {
         bytes32 wrongReturn = keccak256("wrong return");
         vm.mockCall(
@@ -1222,19 +1148,6 @@ contract PWNLoan_TryCallLenderRepaymentHook_Test is PWNLoanTest {
         vm.prank(address(loanContract));
         loanContract.tryCallLenderRepaymentHook(
             PWNLoan.LenderRepaymentHookData(IPWNLenderRepaymentHook(address(0)), ""),
-            borrower, lender, loan.creditAddress, 1 ether
-        );
-    }
-
-    function test_shouldFail_whenLenderRepaymentHookNotTaggedInHub() external {
-        _mockHubTag(address(lenderRepaymentHook), PWNHubTags.HOOK, false);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(PWNLoan.AddressMissingHubTag.selector, address(lenderRepaymentHook), PWNHubTags.HOOK)
-        );
-        vm.prank(address(loanContract));
-        loanContract.tryCallLenderRepaymentHook(
-            PWNLoan.LenderRepaymentHookData(lenderRepaymentHook, ""),
             borrower, lender, loan.creditAddress, 1 ether
         );
     }
@@ -1801,17 +1714,7 @@ contract PWNLoan_GetBorrowerSpecHash_Test is PWNLoanTest {
 
 contract PWNLoan_UpdateLenderRepaymentHook_Test is PWNLoanTest {
 
-    function test_shouldFail_whenNewHookIsNotTagged() external {
-        _mockHubTag(address(lenderRepaymentHook), PWNHubTags.HOOK, false);
-
-        vm.expectRevert(abi.encodeWithSelector(PWNLoan.AddressMissingHubTag.selector, lenderRepaymentHook, PWNHubTags.HOOK));
-        vm.prank(lender);
-        loanContract.updateLenderRepaymentHook(loanId, lenderRepaymentHook, "new repayment hook data");
-    }
-
     function test_shouldUpdateLenderRepaymentHook() external {
-        _mockHubTag(address(lenderRepaymentHook), PWNHubTags.HOOK);
-
         vm.prank(lender);
         loanContract.updateLenderRepaymentHook(loanId, lenderRepaymentHook, "new repayment hook data");
 
@@ -1821,7 +1724,6 @@ contract PWNLoan_UpdateLenderRepaymentHook_Test is PWNLoanTest {
 
         // Rewrite to new hook
         IPWNLenderRepaymentHook newHook = IPWNLenderRepaymentHook(makeAddr("newHook"));
-        _mockHubTag(address(newHook), PWNHubTags.HOOK);
 
         vm.prank(lender);
         loanContract.updateLenderRepaymentHook(loanId, newHook, "");

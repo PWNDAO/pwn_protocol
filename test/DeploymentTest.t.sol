@@ -92,7 +92,6 @@ abstract contract DeploymentTest is Deployments, Test {
 
         __d.loanToken = new PWNLOAN(address(__d.hub));
         __d.loan = new PWNLoan(
-            address(__d.hub),
             address(__d.loanToken),
             address(__d.config),
             address(__d.categoryRegistry)
@@ -151,7 +150,7 @@ abstract contract DeploymentTest is Deployments, Test {
         __d.hooks.directLenderRepayment = new PWNDirectLenderRepaymentHook();
 
         // Set hub tags
-        address[] memory addrs = new address[](16);
+        address[] memory addrs = new address[](11);
         addrs[0] = address(__d.loan);
 
         addrs[1] = address(__d.products.stable);
@@ -166,13 +165,7 @@ abstract contract DeploymentTest is Deployments, Test {
         addrs[9] = address(__d.products.uniswapV3Individual);
         addrs[10] = address(__d.products.uniswapV3Set);
 
-        addrs[11] = address(__d.hooks.refinanceBorrowerCreate);
-        addrs[12] = address(__d.hooks.vaultLender);
-        addrs[13] = address(__d.hooks.aaveLender);
-        addrs[14] = address(__d.hooks.compoundLender);
-        addrs[15] = address(__d.hooks.directLenderRepayment);
-
-        bytes32[] memory tags = new bytes32[](16);
+        bytes32[] memory tags = new bytes32[](11);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
 
         tags[1] = PWNHubTags.NONCE_MANAGER;
@@ -186,12 +179,6 @@ abstract contract DeploymentTest is Deployments, Test {
         tags[8] = PWNHubTags.LOAN_PROPOSAL;
         tags[9] = PWNHubTags.LOAN_PROPOSAL;
         tags[10] = PWNHubTags.LOAN_PROPOSAL;
-
-        tags[11] = PWNHubTags.HOOK;
-        tags[12] = PWNHubTags.HOOK;
-        tags[13] = PWNHubTags.HOOK;
-        tags[14] = PWNHubTags.HOOK;
-        tags[15] = PWNHubTags.HOOK;
 
         vm.prank(__e.protocolTimelock);
         __d.hub.setTags(addrs, tags, true);
