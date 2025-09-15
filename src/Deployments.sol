@@ -31,6 +31,8 @@ import { PWNDirectLenderRepaymentHook } from "pwn/periphery/hook/lender/PWNDirec
 import { PWNRevokedNonce } from "pwn/periphery/auxiliary/PWNRevokedNonce.sol";
 import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol";
 
+import { PWNCrowdsourceLenderVault } from "pwn/periphery/crowdsource/PWNCrowdsourceLenderVault.sol";
+
 
 interface IPWNDeployer {
     function owner() external returns (address);
@@ -72,6 +74,7 @@ abstract contract Deployments is CommonBase {
         IChainlinkFeedRegistryLike chainlinkFeedRegistry;
         PWNConfig config;
         PWNConfig configSingleton;
+        PWNCrowdsourceLenderVault crowdsourceLenderVault;
         Hooks hooks;
         PWNHub hub;
         PWNLoan loan;

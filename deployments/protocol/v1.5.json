@@ -1,3 +1,22 @@
 {
-
+    "11155111": {
+        "categoryRegistry": "0xbB2168d5546A94AE2DA9254e63D88F7f137B2534",
+        "chainlinkFeedRegistry": "0x8D5e90706E52a52853dA9A14fA1c63889a412851",
+        "config": "0xd52a2898d61636bB3eEF0d145f05352FF543bdCC",
+        "configSingleton": "0x1f5febF0efA3aD487508b6Cc7f39a0a54DE9De72",
+        "crowdsourceLenderVault": "",
+        "hooks": {
+            "compoundLender": "",
+            "directLenderRepayment": "",
+            "refinanceBorrowerCreate": ""
+        },
+        "hub": "0x37807A2F031b3B44081F4b21500E5D70EbaDAdd5",
+        "loan": "",
+        "loanToken": "0x4440C069272cC34b80C7B11bEE657D0349Ba9C23",
+        "products": {
+            "installments": ""
+        },
+        "revokedNonce": "0x972204fF33348ee6889B2d0A3967dB67d7b08e4c",
+        "utilizedCredit": "0x8E6F44DEa3c11d69C63655BDEcbA25Fa986BCE9D"
+    }
 }

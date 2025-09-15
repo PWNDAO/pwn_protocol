@@ -21,8 +21,10 @@ import {
     MultiTokenCategoryRegistry,
     IChainlinkFeedRegistryLike,
     PWNStableProduct,
-    PWNWorldStableProduct
+    PWNInstallmentsProduct
 } from "pwn/Deployments.sol";
+
+import { PWNCrowdsourceLenderVault } from "pwn/periphery/crowdsource/PWNCrowdsourceLenderVault.sol";
 
 
 library PWNContractDeployerSalt {
@@ -44,7 +46,10 @@ library PWNContractDeployerSalt {
     bytes32 internal constant FIXED_PRODUCT = keccak256("PWNFixedProduct");
     bytes32 internal constant UNISWAP_V3_INDIVIDUAL_PRODUCT = keccak256("PWNUniswapV3IndividualProduct");
     bytes32 internal constant UNISWAP_V3_SET_PRODUCT = keccak256("PWNUniswapV3SetProduct");
+    bytes32 internal constant INSTALLMENTS_PRODUCT = keccak256("PWNInstallmentsProduct");
 
+    // Others
+    bytes32 internal constant CROWDSOURCE_LENDER_VAULT = keccak256("PWNCrowdsourceLenderVault");
 }
 
 using GnosisSafeUtils for GnosisSafeLike;
@@ -100,35 +105,74 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
                 PWNContractDeployerSalt.LOAN,
                 abi.encodePacked(
                     type(PWNLoan).creationCode,
-                    abi.encode(address(__d.hub), address(__d.loanToken), address(__d.config), address(__d.categoryRegistry), __e.permit2)
+                    abi.encode(address(__d.loanToken), address(__d.config), address(__d.categoryRegistry))
                 )
             )
         );
 
-        __d.products.stable = PWNStableProduct(
+        __d.products.installments = PWNInstallmentsProduct(
             _deploy(
-                PWNContractDeployerSalt.STABLE_PRODUCT,
+                PWNContractDeployerSalt.INSTALLMENTS_PRODUCT,
                 abi.encodePacked(
-                    type(PWNWorldStableProduct).creationCode,
-                    abi.encode(address(__d.hub), address(__d.revokedNonce), address(__d.utilizedCredit), address(__d.chainlinkFeedRegistry), __e.chainlinkL2SequencerUptimeFeed, __e.weth, 0x17B354dD2595411ff79041f930e491A4Df39A278, "app_17abe44eaf47c99566f5378aa4e19463", "verify-humanness")
+                    type(PWNInstallmentsProduct).creationCode,
+                    abi.encode(address(__d.hub), address(__d.revokedNonce), address(__d.utilizedCredit), address(__d.chainlinkFeedRegistry), __e.chainlinkL2SequencerUptimeFeed, __e.weth)
                 )
             )
         );
 
         console2.log("PWNLoan:", address(__d.loan));
-        console2.log("PWNStableProduct:", address(__d.products.stable));
+        console2.log("PWNInstallmentsProduct:", address(__d.products.installments));
 
-        address[] memory addrs = new address[](3);
+        address[] memory addrs = new address[](2);
         addrs[0] = address(__d.loan);
-        addrs[1] = address(__d.products.stable);
-        addrs[2] = address(__d.products.stable);
+        addrs[1] = address(__d.products.installments);
 
-        bytes32[] memory tags = new bytes32[](3);
+        bytes32[] memory tags = new bytes32[](2);
         tags[0] = PWNHubTags.ACTIVE_LOAN;
         tags[1] = PWNHubTags.LOAN_PROPOSAL;
-        tags[2] = PWNHubTags.NONCE_MANAGER;
 
+        // TODO on what contract this should be called?
         console2.logBytes(abi.encodeWithSignature("setTags(address[],bytes32[],bool)", addrs, tags, true));
+
+        address[] memory feedIntermediaryDenominations = new address[](1);
+        // USDC / USD feed + ETH / USD feed
+        feedIntermediaryDenominations[0] = address(840); // USD representation in chainlink
+        bool[] memory feedInvertFlags = new bool[](2);
+        feedInvertFlags[0] = false;
+        feedInvertFlags[1] = true;
+
+        __d.crowdsourceLenderVault = PWNCrowdsourceLenderVault(
+            _deploy(
+                PWNContractDeployerSalt.CROWDSOURCE_LENDER_VAULT,
+                abi.encodePacked(
+                    type(PWNCrowdsourceLenderVault).creationCode,
+                    // TODO Terms terms parameter
+                    abi.encode(
+                        address(__d.loan), 
+                        address(__d.products.installments), 
+                        address(__e.aave), 
+                        "PWNInstallmentsProduct", 
+                        "PWNInstallmentsProduct",
+                        PWNCrowdsourceLenderVault.Terms({
+                            collateralAddress: address(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9),
+                            creditAddress: address(0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8),
+                            feedIntermediaryDenominations: feedIntermediaryDenominations,
+                            feedInvertFlags: feedInvertFlags,
+                            loanToValue: 7500, // 75%
+                            interestAPR: 1000, // 10%
+                            postponement: 2592000, // 30 days in seconds
+                            duration: 63072000, // 730 days (2 years) in seconds
+                            minCreditAmount: 5000000000, // 5000 tokens (assuming 6 decimals)
+                            expiration: block.timestamp + 10368000 // 120 days from now
+                        })
+                    )
+                )
+            )
+        );
+
+        console2.log("PWNCrowdsourceLenderVault:", address(__d.crowdsourceLenderVault));
+
+        // TODO anything else to do here?
 
         vm.stopBroadcast();
     }

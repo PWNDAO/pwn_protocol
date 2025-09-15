@@ -14,41 +14,41 @@ gas_reports = ["PWNSimpleLoan"]
 
 [rpc_endpoints]
 # Mainnets
-mainnet = "${ETHEREUM_URL}"
-polygon = "${POLYGON_URL}"
-arbitrum = "${ARBITRUM_URL}"
-optimism = "${OPTIMISM_URL}"
-base = "${BASE_URL}"
-cronos = "${CRONOS_URL}"
-mantle = "${MANTLE_URL}"
-bsc = "${BSC_URL}"
-linea = "${LINEA_URL}"
-gnosis = "${GNOSIS_URL}"
-world = "${WORLDCHAIN_URL}"
-unichain = "${UNICHAIN_URL}"
-ink = "${INK_URL}"
-sonic = "${SONIC_URL}"
-celo = "${CELO_URL}"
+#mainnet = "${ETHEREUM_URL}"
+#polygon = "${POLYGON_URL}"
+#arbitrum = "${ARBITRUM_URL}"
+#optimism = "${OPTIMISM_URL}"
+#base = "${BASE_URL}"
+#cronos = "${CRONOS_URL}"
+#mantle = "${MANTLE_URL}"
+#bsc = "${BSC_URL}"
+#linea = "${LINEA_URL}"
+#gnosis = "${GNOSIS_URL}"
+#world = "${WORLDCHAIN_URL}"
+#unichain = "${UNICHAIN_URL}"
+#ink = "${INK_URL}"
+#sonic = "${SONIC_URL}"
+#celo = "${CELO_URL}"
 # Testnets
 sepolia = "${SEPOLIA_URL}"
-unichain-sepolia = "${UNICHAIN_SEPOLIA_URL}"
+#unichain-sepolia = "${UNICHAIN_SEPOLIA_URL}"
 # Devnets
-tenderly = "${TENDERLY_URL}"
-local = "${LOCAL_URL}"
+#tenderly = "${TENDERLY_URL}"
+#local = "${LOCAL_URL}"
 
 
 [etherscan]
-mainnet = { key = "${ETHERSCAN_MAINNET_API_KEY}" }
-polygon = { key = "${POLYGONSCAN_API_KEY}" }
-arbitrum = { key = "${ARBISCAN_API_KEY}" }
-optimism = { key = "${OPTIMISTIC_ETHERSCAN_API_KEY}" }
-base = { key = "${BASESCAN_API_KEY}" }
-cronos = { key = "${CRONOSCAN_API_KEY}" }
-bsc = { key = "${BSCSCAN_API_KEY}" }
-linea = { key = "${LINEASCAN_API_KEY}" }
-gnosis = { key = "${GNOSISSCAN_API_KEY}" }
-world = { key = "${WORLDSCAN_API_KEY}" }
-unichain = { key = "${UNISCAN_API_KEY}", url = "https://api.uniscan.xyz/api", chain = 130 }
-sonic = { key = "${SONICSCAN_API_KEY}", url = "https://api.sonicscan.org/api", chain = 146 }
+#mainnet = { key = "${ETHERSCAN_MAINNET_API_KEY}" }
+#polygon = { key = "${POLYGONSCAN_API_KEY}" }
+# arbitrum = { key = "${ARBISCAN_API_KEY}" }
+# optimism = { key = "${OPTIMISTIC_ETHERSCAN_API_KEY}" }
+# base = { key = "${BASESCAN_API_KEY}" }
+#cronos = { key = "${CRONOSCAN_API_KEY}" }
+#bsc = { key = "${BSCSCAN_API_KEY}" }
+#linea = { key = "${LINEASCAN_API_KEY}" }
+#gnosis = { key = "${GNOSISSCAN_API_KEY}" }
+#world = { key = "${WORLDSCAN_API_KEY}" }
+#unichain = { key = "${UNISCAN_API_KEY}", url = "https://api.uniscan.xyz/api", chain = 130 }
+#sonic = { key = "${SONICSCAN_API_KEY}", url = "https://api.sonicscan.org/api", chain = 146 }
 
 sepolia = { key = "${ETHERSCAN_MAINNET_API_KEY}" }
