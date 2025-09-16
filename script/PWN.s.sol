@@ -21,7 +21,8 @@ import {
     MultiTokenCategoryRegistry,
     IChainlinkFeedRegistryLike,
     PWNStableProduct,
-    PWNInstallmentsProduct
+    PWNInstallmentsProduct,
+    IAaveLike
 } from "pwn/Deployments.sol";
 
 import { PWNCrowdsourceLenderVault } from "pwn/periphery/crowdsource/PWNCrowdsourceLenderVault.sol";
@@ -100,46 +101,55 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
         _loadDeployedAddresses();
         vm.startBroadcast();
 
-        __d.loan = PWNLoan(
-            _deploy(
-                PWNContractDeployerSalt.LOAN,
-                abi.encodePacked(
-                    type(PWNLoan).creationCode,
-                    abi.encode(address(__d.loanToken), address(__d.config), address(__d.categoryRegistry))
-                )
-            )
-        );
+        // __d.loan = PWNLoan(
+        //     _deploy(
+        //         PWNContractDeployerSalt.LOAN,
+        //         abi.encodePacked(
+        //             type(PWNLoan).creationCode,
+        //             abi.encode(address(__d.loanToken), address(__d.config), address(__d.categoryRegistry))
+        //         )
+        //     )
+        // );
 
-        __d.products.installments = PWNInstallmentsProduct(
-            _deploy(
-                PWNContractDeployerSalt.INSTALLMENTS_PRODUCT,
-                abi.encodePacked(
-                    type(PWNInstallmentsProduct).creationCode,
-                    abi.encode(address(__d.hub), address(__d.revokedNonce), address(__d.utilizedCredit), address(__d.chainlinkFeedRegistry), __e.chainlinkL2SequencerUptimeFeed, __e.weth)
-                )
-            )
-        );
+        // __d.products.installments = PWNInstallmentsProduct(
+        //     _deploy(
+        //         PWNContractDeployerSalt.INSTALLMENTS_PRODUCT,
+        //         abi.encodePacked(
+        //             type(PWNInstallmentsProduct).creationCode,
+        //             abi.encode(address(__d.hub), address(__d.revokedNonce), address(__d.utilizedCredit), address(__d.chainlinkFeedRegistry), __e.chainlinkL2SequencerUptimeFeed, __e.weth)
+        //         )
+        //     )
+        // );
+
+        // !!! LOADING ADDRESSES FROM JSON DOES NOT WORK SOMEHOW, SO I AM JUST HARDCODING THE ADDRESSES HERE !!!
+
+        __d.loan = PWNLoan(0x7f53449251EF28991C99EA25698B37BC13b173B8);
+        __d.products.installments = PWNInstallmentsProduct(address(0xEc22A11214567f580ef0f1eD8541c6Ff10d1880d));
+        __e.aave = IAaveLike(address(0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951));
 
         console2.log("PWNLoan:", address(__d.loan));
         console2.log("PWNInstallmentsProduct:", address(__d.products.installments));
 
-        address[] memory addrs = new address[](2);
-        addrs[0] = address(__d.loan);
-        addrs[1] = address(__d.products.installments);
+        // address[] memory addrs = new address[](2);
+        // addrs[0] = address(__d.loan);
+        // addrs[1] = address(__d.products.installments);
 
-        bytes32[] memory tags = new bytes32[](2);
-        tags[0] = PWNHubTags.ACTIVE_LOAN;
-        tags[1] = PWNHubTags.LOAN_PROPOSAL;
+        // bytes32[] memory tags = new bytes32[](2);
+        // tags[0] = PWNHubTags.ACTIVE_LOAN;
+        // tags[1] = PWNHubTags.LOAN_PROPOSAL;
 
-        // TODO on what contract this should be called?
-        console2.logBytes(abi.encodeWithSignature("setTags(address[],bytes32[],bool)", addrs, tags, true));
+        // // TODO on what contract this should be called?
+        // console2.logBytes(abi.encodeWithSignature("setTags(address[],bytes32[],bool)", addrs, tags, true));
 
-        address[] memory feedIntermediaryDenominations = new address[](1);
+        address[] memory feedIntermediaryDenominations = new address[](0);
         // USDC / USD feed + ETH / USD feed
-        feedIntermediaryDenominations[0] = address(840); // USD representation in chainlink
-        bool[] memory feedInvertFlags = new bool[](2);
+        // feedIntermediaryDenominations[0] = address(840); // USD representation in chainlink
+        // LINK / ETH feed
+        // feedIntermediaryDenominations[0] = address(0x42585eD362B3f1BCa95c640FdFf35Ef899212734); 
+        bool[] memory feedInvertFlags = new bool[](1);
         feedInvertFlags[0] = false;
-        feedInvertFlags[1] = true;
+        // feedInvertFlags[0] = false;
+        // feedInvertFlags[1] = true;
 
         __d.crowdsourceLenderVault = PWNCrowdsourceLenderVault(
             _deploy(
@@ -153,16 +163,30 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
                         address(__e.aave), 
                         "PWNInstallmentsProduct", 
                         "PWNInstallmentsProduct",
+                        // USDC CREDIT on Sepolia
+                        // PWNCrowdsourceLenderVault.Terms({
+                        //     collateralAddress: address(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9),
+                        //     creditAddress: address(0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8),
+                        //     feedIntermediaryDenominations: feedIntermediaryDenominations,
+                        //     feedInvertFlags: feedInvertFlags,
+                        //     loanToValue: 7500, // 75%
+                        //     interestAPR: 1000, // 10%
+                        //     postponement: 2592000, // 30 days in seconds
+                        //     duration: 63072000, // 730 days (2 years) in seconds
+                        //     minCreditAmount: 5000000000, // 5000 tokens (assuming 6 decimals)
+                        //     expiration: block.timestamp + 10368000 // 120 days from now
+                        // })
+                        // LINK CREDIT on Sepolia
                         PWNCrowdsourceLenderVault.Terms({
                             collateralAddress: address(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9),
-                            creditAddress: address(0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8),
+                            creditAddress: address(0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5),
                             feedIntermediaryDenominations: feedIntermediaryDenominations,
                             feedInvertFlags: feedInvertFlags,
                             loanToValue: 7500, // 75%
                             interestAPR: 1000, // 10%
                             postponement: 2592000, // 30 days in seconds
                             duration: 63072000, // 730 days (2 years) in seconds
-                            minCreditAmount: 5000000000, // 5000 tokens (assuming 6 decimals)
+                            minCreditAmount: 500000000000000000000,
                             expiration: block.timestamp + 10368000 // 120 days from now
                         })
                     )
