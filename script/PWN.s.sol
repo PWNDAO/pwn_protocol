@@ -20,8 +20,7 @@ import {
     PWNUtilizedCredit,
     MultiTokenCategoryRegistry,
     IChainlinkFeedRegistryLike,
-    PWNStableProduct,
-    PWNWorldStableProduct
+    PWNStableProduct
 } from "pwn/Deployments.sol";
 
 
@@ -100,7 +99,7 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
                 PWNContractDeployerSalt.LOAN,
                 abi.encodePacked(
                     type(PWNLoan).creationCode,
-                    abi.encode(address(__d.hub), address(__d.loanToken), address(__d.config), address(__d.categoryRegistry), __e.permit2)
+                    abi.encode(address(__d.loanToken), address(__d.config), address(__d.categoryRegistry))
                 )
             )
         );
@@ -109,8 +108,8 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
             _deploy(
                 PWNContractDeployerSalt.STABLE_PRODUCT,
                 abi.encodePacked(
-                    type(PWNWorldStableProduct).creationCode,
-                    abi.encode(address(__d.hub), address(__d.revokedNonce), address(__d.utilizedCredit), address(__d.chainlinkFeedRegistry), __e.chainlinkL2SequencerUptimeFeed, __e.weth, 0x17B354dD2595411ff79041f930e491A4Df39A278, "app_17abe44eaf47c99566f5378aa4e19463", "verify-humanness")
+                    type(PWNStableProduct).creationCode,
+                    abi.encode(address(__d.hub), address(__d.revokedNonce), address(__d.utilizedCredit), address(__d.chainlinkFeedRegistry), __e.chainlinkL2SequencerUptimeFeed, __e.weth)
                 )
             )
         );
