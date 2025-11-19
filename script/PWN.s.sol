@@ -103,7 +103,7 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
 
         // !!! TODO LOADING ADDRESSES FROM JSON DOES NOT WORK SOMEHOW, SO I AM JUST HARDCODING THE ADDRESSES HERE !!!
 
-        // __d.loan = PWNLoan(0x7f53449251EF28991C99EA25698B37BC13b173B8);
+        __d.loan = PWNLoan(0xc58791ec351349a82036aE712976109C10e34217);
         __e.aave = IAaveLike(address(0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951));
         __d.hub = PWNHub(0x37807A2F031b3B44081F4b21500E5D70EbaDAdd5);
         __d.revokedNonce = PWNRevokedNonce(0x972204fF33348ee6889B2d0A3967dB67d7b08e4c);
@@ -118,19 +118,21 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
         __d.config = PWNConfig(0xd52a2898d61636bB3eEF0d145f05352FF543bdCC);
         __d.categoryRegistry = MultiTokenCategoryRegistry(0xbB2168d5546A94AE2DA9254e63D88F7f137B2534);
 
-        __d.loan = PWNLoan(
-            _deploy(
-                PWNContractDeployerSalt.LOAN,
-                abi.encodePacked(
-                    type(PWNLoan).creationCode,
-                    abi.encode(
-                        address(__d.loanToken), 
-                        address(__d.config), 
-                        address(__d.categoryRegistry)
-                    )
-                )
-            )
-        );
+        // __d.loan = PWNLoan(
+        //     _deploy(
+        //         PWNContractDeployerSalt.LOAN,
+        //         abi.encodePacked(
+        //             type(PWNLoan).creationCode,
+        //             abi.encode(
+        //                 address(__d.loanToken), 
+        //                 address(__d.config), 
+        //                 address(__d.categoryRegistry)
+        //             )
+        //         )
+        //     )
+        // );
+
+        // console2.log("PWNLoan:", address(__d.loan));
 
         // __d.products.installments = PWNInstallmentsProduct(
         //     _deploy(
@@ -149,81 +151,41 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
         //     )
         // );
 
-        console2.log("PWNLoan:", address(__d.loan));
         // console2.log("PWNInstallmentsProduct:", address(__d.products.installments));
-        // console2.log("Aave:", address(__e.aave));
 
-        // address[] memory addrs = new address[](2);
+        // address[] memory addrs = new address[](1);
         // addrs[0] = address(__d.loan);
-        // addrs[1] = address(__d.products.installments);
 
-        address[] memory addrs = new address[](1);
-        addrs[0] = address(__d.loan);
-
-        // bytes32[] memory tags = new bytes32[](2);
+        // bytes32[] memory tags = new bytes32[](1);
         // tags[0] = PWNHubTags.ACTIVE_LOAN;
-        // tags[1] = PWNHubTags.LOAN_PROPOSAL;
 
-        bytes32[] memory tags = new bytes32[](1);
-        tags[0] = PWNHubTags.ACTIVE_LOAN;
-
-        // // TODO on what contract this should be called?
-        console2.logBytes(abi.encodeWithSignature("setTags(address[],bytes32[],bool)", addrs, tags, true));
+        // note: this should be called on the protocolTimelock contract and use `schedule` and then `execute`
+        //  functions where the target arg is the PWNHub and the data is the encoded bytes logged below
+        // note 2: when setting tags for proposal, it needs to have both LOAN_PROPOSAL and NONCE_MANAGER
+        //  tags in order to work fully correctly
+        // console2.logBytes(abi.encodeWithSignature("setTags(address[],bytes32[],bool)", addrs, tags, true));
 
         address[] memory feedIntermediaryDenominations = new address[](1);
         feedIntermediaryDenominations[0] = address(0x0000000000000000000000000000000000000348);
-        // USDC / USD feed + ETH / USD feed
-        // feedIntermediaryDenominations[0] = address(840); // USD representation in chainlink
-        // LINK / ETH feed
-        // feedIntermediaryDenominations[0] = address(0x42585eD362B3f1BCa95c640FdFf35Ef899212734); 
-        // EUR / ETH feed
-        // feedIntermediaryDenominations[0] = address(0x1a81afB8146aeFfCFc5E50e8479e826E7D55b910);
         bool[] memory feedInvertFlags = new bool[](2);
         feedInvertFlags[0] = false;
         feedInvertFlags[1] = true;
-        // feedInvertFlags[0] = false;
-        // feedInvertFlags[1] = true;
 
+        __d.loan = PWNLoan(0xc58791ec351349a82036aE712976109C10e34217);
+        __d.products.installments = PWNInstallmentsProduct(0x68669e7ec29070e3dfa684cb4893282Cd4C9E608);
+        __e.aave = IAaveLike(address(0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951));
 
         __d.crowdsourceLenderVault = PWNCrowdsourceLenderVault(
             _deploy(
                 PWNContractDeployerSalt.CROWDSOURCE_LENDER_VAULT,
                 abi.encodePacked(
                     type(PWNCrowdsourceLenderVault).creationCode,
-                    // TODO Terms terms parameter
                     abi.encode(
                         address(__d.loan), 
                         address(__d.products.installments), 
                         address(__e.aave), 
                         "PWNInstallmentsProduct", 
                         "PWNInstallmentsProduct",
-                        // USDC CREDIT on Sepolia
-                        // PWNCrowdsourceLenderVault.Terms({
-                        //     collateralAddress: address(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9),
-                        //     creditAddress: address(0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8),
-                        //     feedIntermediaryDenominations: feedIntermediaryDenominations,
-                        //     feedInvertFlags: feedInvertFlags,
-                        //     loanToValue: 7500, // 75%
-                        //     interestAPR: 1000, // 10%
-                        //     postponement: 2592000, // 30 days in seconds
-                        //     duration: 63072000, // 730 days (2 years) in seconds
-                        //     minCreditAmount: 5000000000, // 5000 tokens (assuming 6 decimals)
-                        //     expiration: block.timestamp + 10368000 // 120 days from now
-                        // })
-                        // LINK CREDIT on Sepolia
-                        // PWNCrowdsourceLenderVault.Terms({
-                        //     collateralAddress: address(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9),
-                        //     creditAddress: address(0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5),
-                        //     feedIntermediaryDenominations: feedIntermediaryDenominations,
-                        //     feedInvertFlags: feedInvertFlags,
-                        //     loanToValue: 7500, // 75%
-                        //     interestAPR: 1000, // 10%
-                        //     postponement: 2592000, // 30 days in seconds
-                        //     duration: 63072000, // 730 days (2 years) in seconds
-                        //     minCreditAmount: 500000000000000000000,
-                        //     expiration: block.timestamp + 10368000 // 120 days from now
-                        // })
-                        // EURS CREDIT on Sepolia
                         PWNCrowdsourceLenderVault.Terms({
                             collateralAddress: address(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9),
                             creditAddress: address(0x6d906e526a4e2Ca02097BA9d0caA3c382F52278E),
@@ -231,13 +193,9 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
                             feedInvertFlags: feedInvertFlags,
                             loanToValue: 7500, // 75%
                             interestAPR: 1000, // 10%
-                            // postponement: 2592000, // 30 days in seconds
                             postponement: 1200, // 20 minutes in seconds
-                            // duration: 63072000, // 730 days (2 years) in seconds
                             duration: 7200, // 2 hours in seconds
-                            // minCreditAmount: 50000, // 500 EURS
                             minCreditAmount: 10000, // 100 EURS
-                            // expiration: block.timestamp + 10368000 // 120 days from now
                             expiration: block.timestamp + 36000 // 10 hours from now
                         })
                     )
@@ -246,8 +204,6 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
         );
 
         console2.log("PWNCrowdsourceLenderVault:", address(__d.crowdsourceLenderVault));
-
-        // TODO anything else to do here?
 
         vm.stopBroadcast();
     }
