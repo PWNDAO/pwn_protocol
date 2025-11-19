@@ -219,6 +219,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
         uint256 loanToValue
     ) public view returns (uint256) {
         if (loanToValue == 0) revert LoanToValueZero();
+        // throws if returned price from chainlink pracle is negative or zero
         return _chainlink.convertDenomination({
             amount: creditAmount,
             oldDenomination: creditAddress,
@@ -266,6 +267,11 @@ contract PWNInstallmentsProduct is IPWNProduct {
         // Check duration
         if (proposal.duration < MIN_DURATION) {
             revert DurationTooShort();
+        }
+
+        // TODO should here be >= or just >
+        if (proposal.postponement >= proposal.duration) {
+            revert PostponementBiggerThanDuration();
         }
 
         // Check min credit amount

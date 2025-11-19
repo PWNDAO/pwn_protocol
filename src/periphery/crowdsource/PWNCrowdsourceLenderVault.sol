@@ -99,6 +99,11 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
         }
         collateralDecimals = decimals;
 
+        // TODO should we check the values here that they are correct?
+
+        // TODO should we check here that the getCollateralAmount on installments product contract returns
+        //  positive result (to ensure that the feeds are set up correctly)?
+
         proposalHash = loanContract.makeProposalAcceptable(product, abi.encode(
             PWNInstallmentsProduct.Proposal({
                 collateralAddress: _terms.collateralAddress,
@@ -194,7 +199,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     function maxRedeem(address owner) public view override returns (uint256 max) {
         max = balanceOf(owner);
         if (stage() == Stage.RUNNING) {
-            max = Math.min(max, _convertToShares(_availableLiquidity(), Math.Rounding.Up));
+            max = Math.min(max, _convertToShares(_availableLiquidity(), Math.Rounding.Down));
         }
     }
 
@@ -314,6 +319,14 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
         return IERC20(collateralAddr).balanceOf(address(this)) + additionalCollateralAssets;
     }
 
+    // TODO shall we keep this as `public`, or only as `external` since so far it's not used internally anywhere?
+    // TODO same question for:
+    //  1) totalAssets
+    //  2) deposit
+    //  3) mint
+    //  4) withdraw
+    //  5) redeem
+    //  6) previewCollateralRedeem
     /**
      * @notice ERC4626-like function that allows an on-chain or off-chain user to simulate the effects
      * of their collateral redeemption at the current block, given current on-chain conditions.
