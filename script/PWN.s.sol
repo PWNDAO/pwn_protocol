@@ -103,77 +103,86 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
 
         // !!! TODO LOADING ADDRESSES FROM JSON DOES NOT WORK SOMEHOW, SO I AM JUST HARDCODING THE ADDRESSES HERE !!!
 
-        __d.loan = PWNLoan(0xc58791ec351349a82036aE712976109C10e34217);
-        __e.aave = IAaveLike(address(0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951));
+        __d.loanToken = PWNLOAN(0x4440C069272cC34b80C7B11bEE657D0349Ba9C23);
+        __d.config = PWNConfig(0xd52a2898d61636bB3eEF0d145f05352FF543bdCC);
+        __d.categoryRegistry = MultiTokenCategoryRegistry(0xbB2168d5546A94AE2DA9254e63D88F7f137B2534);
+
+        __d.loan = PWNLoan(
+            _deploy(
+                PWNContractDeployerSalt.LOAN,
+                abi.encodePacked(
+                    type(PWNLoan).creationCode,
+                    abi.encode(
+                        address(__d.loanToken), 
+                        address(__d.config), 
+                        address(__d.categoryRegistry)
+                    )
+                )
+            )
+        );
+
+        console2.log("PWNLoan:", address(__d.loan));
+
         __d.hub = PWNHub(0x37807A2F031b3B44081F4b21500E5D70EbaDAdd5);
         __d.revokedNonce = PWNRevokedNonce(0x972204fF33348ee6889B2d0A3967dB67d7b08e4c);
         __d.utilizedCredit = PWNUtilizedCredit(0x8E6F44DEa3c11d69C63655BDEcbA25Fa986BCE9D);
         __d.chainlinkFeedRegistry = IChainlinkFeedRegistryLike(0x8D5e90706E52a52853dA9A14fA1c63889a412851);
         __e.chainlinkL2SequencerUptimeFeed = address(0x0000000000000000000000000000000000000000);
-        __e.weth = address(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9);
-        __d.products.installments = PWNInstallmentsProduct(0x68669e7ec29070e3dfa684cb4893282Cd4C9E608);
+        __e.weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
+        __d.products.installments = PWNInstallmentsProduct(
+            _deploy(
+                PWNContractDeployerSalt.INSTALLMENTS_PRODUCT,
+                abi.encodePacked(
+                    type(PWNInstallmentsProduct).creationCode,
+                    abi.encode(
+                        address(__d.hub), 
+                        address(__d.revokedNonce), 
+                        address(__d.utilizedCredit), 
+                        address(__d.chainlinkFeedRegistry), 
+                        __e.chainlinkL2SequencerUptimeFeed, 
+                        __e.weth
+                    )
+                )
+            )
+        );
 
-        __d.loanToken = PWNLOAN(0x4440C069272cC34b80C7B11bEE657D0349Ba9C23);
-        __d.config = PWNConfig(0xd52a2898d61636bB3eEF0d145f05352FF543bdCC);
-        __d.categoryRegistry = MultiTokenCategoryRegistry(0xbB2168d5546A94AE2DA9254e63D88F7f137B2534);
+        console2.log("PWNInstallmentsProduct:", address(__d.products.installments));
 
-        // __d.loan = PWNLoan(
-        //     _deploy(
-        //         PWNContractDeployerSalt.LOAN,
-        //         abi.encodePacked(
-        //             type(PWNLoan).creationCode,
-        //             abi.encode(
-        //                 address(__d.loanToken), 
-        //                 address(__d.config), 
-        //                 address(__d.categoryRegistry)
-        //             )
-        //         )
-        //     )
-        // );
+        address[] memory addrs = new address[](3);
+        addrs[0] = address(__d.loan);
+        addrs[1] = address(__d.products.installments);
+        addrs[2] = address(__d.products.installments);
 
-        // console2.log("PWNLoan:", address(__d.loan));
-
-        // __d.products.installments = PWNInstallmentsProduct(
-        //     _deploy(
-        //         PWNContractDeployerSalt.INSTALLMENTS_PRODUCT,
-        //         abi.encodePacked(
-        //             type(PWNInstallmentsProduct).creationCode,
-        //             abi.encode(
-        //                 address(__d.hub), 
-        //                 address(__d.revokedNonce), 
-        //                 address(__d.utilizedCredit), 
-        //                 address(__d.chainlinkFeedRegistry), 
-        //                 __e.chainlinkL2SequencerUptimeFeed, 
-        //                 __e.weth
-        //             )
-        //         )
-        //     )
-        // );
-
-        // console2.log("PWNInstallmentsProduct:", address(__d.products.installments));
-
-        // address[] memory addrs = new address[](1);
-        // addrs[0] = address(__d.loan);
-
-        // bytes32[] memory tags = new bytes32[](1);
-        // tags[0] = PWNHubTags.ACTIVE_LOAN;
+        bytes32[] memory tags = new bytes32[](3);
+        tags[0] = PWNHubTags.ACTIVE_LOAN;
+        tags[1] = PWNHubTags.LOAN_PROPOSAL;
+        tags[2] = PWNHubTags.NONCE_MANAGER;
 
         // note: this should be called on the protocolTimelock contract and use `schedule` and then `execute`
         //  functions where the target arg is the PWNHub and the data is the encoded bytes logged below
         // note 2: when setting tags for proposal, it needs to have both LOAN_PROPOSAL and NONCE_MANAGER
         //  tags in order to work fully correctly
-        // console2.logBytes(abi.encodeWithSignature("setTags(address[],bytes32[],bool)", addrs, tags, true));
+        console2.logBytes(abi.encodeWithSignature("setTags(address[],bytes32[],bool)", addrs, tags, true));
 
-        address[] memory feedIntermediaryDenominations = new address[](1);
-        feedIntermediaryDenominations[0] = address(0x0000000000000000000000000000000000000348);
-        bool[] memory feedInvertFlags = new bool[](2);
+        /*
+            USDC --> rETH route
+            1) USDC --> USD  ( 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6 , non inverted )
+            2) USD --> ETH   ( 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419 , inverted )
+            3) eth --> rETH  ( 0x536218f9E9Eb48863970252233c8F271f554C2d0 , inverted )
+        */
+
+        address[] memory feedIntermediaryDenominations = new address[](2);
+        feedIntermediaryDenominations[0] = address(0x0000000000000000000000000000000000000348); // USD
+        feedIntermediaryDenominations[1] = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE); // ETH
+        bool[] memory feedInvertFlags = new bool[](3);
         feedInvertFlags[0] = false;
         feedInvertFlags[1] = true;
+        feedInvertFlags[2] = true;
 
-        __d.loan = PWNLoan(0xc58791ec351349a82036aE712976109C10e34217);
-        __d.products.installments = PWNInstallmentsProduct(0x68669e7ec29070e3dfa684cb4893282Cd4C9E608);
-        __e.aave = IAaveLike(address(0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951));
+        // __d.loan = PWNLoan(0xc58791ec351349a82036aE712976109C10e34217);
+        // __d.products.installments = PWNInstallmentsProduct(0x68669e7ec29070e3dfa684cb4893282Cd4C9E608);
+        __e.aave = IAaveLike(address(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2));
 
         __d.crowdsourceLenderVault = PWNCrowdsourceLenderVault(
             _deploy(
@@ -183,20 +192,20 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
                     abi.encode(
                         address(__d.loan), 
                         address(__d.products.installments), 
-                        address(__e.aave), 
-                        "PWNInstallmentsProduct", 
-                        "PWNInstallmentsProduct",
+                        address(__e.aave),
+                        "BordelMortgageVaultShare", 
+                        "BORDEL",
                         PWNCrowdsourceLenderVault.Terms({
-                            collateralAddress: address(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9),
-                            creditAddress: address(0x6d906e526a4e2Ca02097BA9d0caA3c382F52278E),
+                            collateralAddress: address(0xae78736Cd615f374D3085123A210448E74Fc6393), // rETH
+                            creditAddress: address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48), // USDC
                             feedIntermediaryDenominations: feedIntermediaryDenominations,
                             feedInvertFlags: feedInvertFlags,
                             loanToValue: 7500, // 75%
-                            interestAPR: 1000, // 10%
-                            postponement: 1200, // 20 minutes in seconds
-                            duration: 7200, // 2 hours in seconds
-                            minCreditAmount: 10000, // 100 EURS
-                            expiration: block.timestamp + 36000 // 10 hours from now
+                            interestAPR: 200, // 2%
+                            postponement: 15780000, // 6 months in seconds
+                            duration: 157800000, // 5 years in seconds
+                            minCreditAmount: 180000000000, // 180 000 USDC (6 decimals)
+                            expiration: block.timestamp + 8640000 // 100 days from now
                         })
                     )
                 )
