@@ -166,10 +166,10 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
         console2.logBytes(abi.encodeWithSignature("setTags(address[],bytes32[],bool)", addrs, tags, true));
 
         /*
-            USDC --> rETH route
+            USDC --> weETH route
             1) USDC --> USD  ( 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6 , non inverted )
             2) USD --> ETH   ( 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419 , inverted )
-            3) eth --> rETH  ( 0x536218f9E9Eb48863970252233c8F271f554C2d0 , inverted )
+            3) eth --> weETH ( 0x5c9C449BbC9a6075A2c061dF312a35fd1E05fF22 , inverted )
         */
 
         address[] memory feedIntermediaryDenominations = new address[](2);
@@ -196,7 +196,7 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
                         "BordelMortgageVaultShare", 
                         "BORDEL",
                         PWNCrowdsourceLenderVault.Terms({
-                            collateralAddress: address(0xae78736Cd615f374D3085123A210448E74Fc6393), // rETH
+                            collateralAddress: address(0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee), // weETH
                             creditAddress: address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48), // USDC
                             feedIntermediaryDenominations: feedIntermediaryDenominations,
                             feedInvertFlags: feedInvertFlags,
