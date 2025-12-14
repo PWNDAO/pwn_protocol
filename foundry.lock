@@ -1,0 +1,20 @@
+{
+  "lib/MultiToken": {
+    "rev": "863dcd8b4c60494d1deda231fb95b48073d85659"
+  },
+  "lib/forge-std": {
+    "rev": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "bd325d56b4c62c9c5c1aff048c37c6bb18ac0290"
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "a40cb0bda838c2ef3dfc252c179f5c37c32e80c4"
+  },
+  "lib/v3-core": {
+    "rev": "6562c52e8f75f0c10f9deaf44861847585fc8129"
+  },
+  "lib/v3-periphery": {
+    "rev": "50c696768e1e6cf13aa4d4d382ab3fec0c7d3b2e"
+  }
+}

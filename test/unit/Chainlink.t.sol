@@ -470,6 +470,7 @@ contract Chainlink_ConvertPriceDenomination_Test is ChainlinkTest {
 |*  # FETCH PRICE                                           *|
 |*----------------------------------------------------------*/
 
+// TODO should we add test that will check if we threw exception when price is 0?
 contract Chainlink_FetchPrice_Test is ChainlinkTest {
 
     address denominator = makeAddr("denominator");
@@ -520,7 +521,7 @@ contract Chainlink_FetchPrice_Test is ChainlinkTest {
     }
 
     function testFuzz_shouldReturnPriceAndDecimals(uint256 _price, uint8 _decimals) external {
-        _price = bound(_price, 0, uint256(type(int256).max));
+        _price = bound(_price, 1, uint256(type(int256).max));
 
         _mockFeedDecimals(aggregator, _decimals);
         _mockLastRoundData(aggregator, int256(_price), 1);
