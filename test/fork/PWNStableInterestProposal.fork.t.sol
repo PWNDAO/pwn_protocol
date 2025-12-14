@@ -208,7 +208,7 @@ contract PWNStableProductForkTest is DeploymentTest {
 
         deal(lender, 10000 ether);
         deal(borrower, 10000 ether);
-        deal(address(ARB), borrower, 3000e18, false);
+        deal(address(ARB), borrower, 5000e18, false);
         deal(address(USDT), lender, 1000e6, false);
 
         // Register ARB/USD & ETH/USD feed
