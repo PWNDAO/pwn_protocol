@@ -122,6 +122,7 @@ contract PWNCrowdsourceLenderVaultForkTest is DeploymentTest {
             expiration: terms.expiration,
             proposerSpecHash: __d.loan.getLenderSpecHash(lenderSpec),
             isProposerLender: true,
+            allowedAcceptor: address(0),
             loanContract: address(__d.loan)
         });
         acceptorValues = PWNInstallmentsProduct.AcceptorValues({

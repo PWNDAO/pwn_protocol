@@ -124,6 +124,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
                     createHook: this, createHookData: "", repaymentHook: this, repaymentHookData: ""
                 })),
                 isProposerLender: true,
+                allowedAcceptor: address(0),
                 loanContract: address(loanContract)
             })
         ));

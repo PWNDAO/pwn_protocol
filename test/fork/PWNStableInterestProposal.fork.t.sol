@@ -48,6 +48,7 @@ contract PWNStableProductForkTest is DeploymentTest {
             expiration: block.timestamp + 7 days,
             proposerSpecHash: bytes32(0),
             isProposerLender: true,
+            allowedAcceptor: address(0),
             loanContract: address(__d.loan)
         });
 

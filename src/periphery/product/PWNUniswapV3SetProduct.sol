@@ -72,7 +72,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
     bytes32 public immutable DOMAIN_SEPARATOR;
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(address[] tokenAAllowlist,address[] tokenBAllowlist,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 acceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,address loanContract)"
+        "Proposal(address[] tokenAAllowlist,address[] tokenBAllowlist,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 acceptableLoanToValue,uint256 interestAPR,uint256 duration,uint256 liquidationLoanToValue,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,address allowedAcceptor,address loanContract)"
     );
 
     /**
@@ -93,6 +93,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
      * @param nonce Additional value to enable identical proposals in time. Without it, it would be impossible to make again proposal, which was once revoked. Can be used to create a group of proposals, where accepting one proposal will make other proposals in the group revoked.
      * @param expiration Proposal expiration timestamp in seconds.
      * @param proposerSpecHash Hash of a proposer specific data, which must be provided during a loan creation.
+     * @param allowedAcceptor Address allowed to accept the proposal. If zero address, anyone except the proposer can accept.
      * @param loanContract Address of a loan contract that will create a loan from the proposal.
      */
     struct Proposal {
@@ -119,6 +120,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         uint256 expiration;
         // General proposal
         bytes32 proposerSpecHash;
+        address allowedAcceptor;
         address loanContract;
     }
 
@@ -184,6 +186,8 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
     error DurationTooShort();
     /** @notice Thrown when the loan to value is outside of acceptable limits for the proposal.*/
     error InvalidLoanToValue(uint256 current, uint256 limit);
+    /** @notice Thrown when caller is not allowed to accept the proposal.*/
+    error CallerNotAllowedAcceptor(address current, address allowed);
 
 
     /*----------------------------------------------------------*|
@@ -263,7 +267,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
 
     function acceptProposal(
         uint256 loanId,
-        address /* acceptor */,
+        address acceptor,
         address proposer,
         bytes calldata proposalData
     ) override external returns (Terms memory loanTerms) {
@@ -276,6 +280,11 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         }
         if (!hub.hasTag(proposal.loanContract, PWNHubTags.ACTIVE_LOAN)) {
             revert AddressMissingHubTag({ addr: proposal.loanContract, tag: PWNHubTags.ACTIVE_LOAN });
+        }
+
+        // Check allowed acceptor
+        if (proposal.allowedAcceptor != address(0) && acceptor != proposal.allowedAcceptor) {
+            revert CallerNotAllowedAcceptor({ current: acceptor, allowed: proposal.allowedAcceptor });
         }
 
         // Check proposal is not expired
@@ -565,6 +574,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
         uint256 nonce;
         uint256 expiration;
         bytes32 proposerSpecHash;
+        address allowedAcceptor;
         address loanContract;
     }
 
@@ -585,6 +595,7 @@ contract PWNUniswapV3SetProduct is IPWNProduct, IERC721Receiver {
             nonce: proposal.nonce,
             expiration: proposal.expiration,
             proposerSpecHash: proposal.proposerSpecHash,
+            allowedAcceptor: proposal.allowedAcceptor,
             loanContract: proposal.loanContract
         });
         return abi.encode(erc712Proposal);

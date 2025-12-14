@@ -64,6 +64,7 @@ abstract contract PWNInstallmentsProductTest is Test {
             expiration: block.timestamp + 1 days,
             proposerSpecHash: bytes32(0),
             isProposerLender: true,
+            allowedAcceptor: address(0),
             loanContract: loanContract
         });
         proposal.feedInvertFlags[0] = false;
@@ -103,7 +104,7 @@ abstract contract PWNInstallmentsProductTest is Test {
 
     function _hashProposalTypedData(PWNInstallmentsProduct.Proposal memory _proposal) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(
-            keccak256("Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 postponement,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"),
+            keccak256("Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 postponement,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address allowedAcceptor,address loanContract)"),
             product.exposed_erc712EncodeProposal(_proposal)
         ));
     }
@@ -431,6 +432,37 @@ contract PWNInstallmentsProduct_acceptProposal_Test is PWNInstallmentsProductTes
         assertEq(terms.collateral.amount, collateralAmount);
         assertEq(terms.creditAddress, proposal.creditAddress);
         assertEq(terms.principal, acceptorValues.creditAmount);
+    }
+
+    function test_shouldSucceed_whenAllowedAcceptorIsZero() external {
+        proposal.allowedAcceptor = address(0);
+        
+        vm.prank(loanContract);
+        product.acceptProposal(loanId, acceptor, proposer, _proposalData());
+    }
+
+    function test_shouldSucceed_whenAcceptorMatchesAllowedAcceptor() external {
+        proposal.allowedAcceptor = acceptor;
+        
+        vm.prank(loanContract);
+        product.acceptProposal(loanId, acceptor, proposer, _proposalData());
+    }
+
+    function testFuzz_shouldFail_whenAcceptorDoesNotMatchAllowedAcceptor(address allowedAddr, address currentAcceptor) external {
+        vm.assume(allowedAddr != address(0));
+        vm.assume(currentAcceptor != allowedAddr);
+        
+        proposal.allowedAcceptor = allowedAddr;
+        
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PWNInstallmentsProduct.CallerNotAllowedAcceptor.selector,
+                currentAcceptor,
+                allowedAddr
+            )
+        );
+        vm.prank(loanContract);
+        product.acceptProposal(loanId, currentAcceptor, proposer, _proposalData());
     }
 
 }
