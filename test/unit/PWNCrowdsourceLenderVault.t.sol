@@ -56,7 +56,9 @@ abstract contract PWNCrowdsourceLenderVaultTest is Test {
             postponement: 90 days,
             duration: 365 days,
             minCreditAmount: 1 ether,
-            expiration: uint40(block.timestamp + 7 days)
+            expiration: uint40(block.timestamp + 7 days),
+            // TODO do we also need to test with non zero address?
+            allowedAcceptor: address(0)
         });
 
         _mockAaveReserveData(aaveReserveData);

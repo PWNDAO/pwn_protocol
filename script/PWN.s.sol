@@ -205,7 +205,9 @@ forge script script/PWN.s.sol:Deploy --sig "deploy()" \
                             postponement: 15780000, // 6 months in seconds
                             duration: 157800000, // 5 years in seconds
                             minCreditAmount: 180000000000, // 180 000 USDC (6 decimals)
-                            expiration: block.timestamp + 8640000 // 100 days from now
+                            expiration: block.timestamp + 8640000, // 100 days from now
+                            // TODO double check this is correct address
+                            allowedAcceptor: address(0x8a7a728a181E674833E018706422cb28543abD87)
                         })
                     )
                 )

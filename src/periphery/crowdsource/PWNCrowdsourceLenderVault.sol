@@ -74,6 +74,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
         uint256 duration;
         uint256 minCreditAmount;
         uint256 expiration;
+        address allowedAcceptor;
     }
 
     /*** @notice Emitted when collateral is withdrawn.*/
@@ -115,6 +116,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
                 duration: _terms.duration,
                 postponement: _terms.postponement,
                 minCreditAmount: _terms.minCreditAmount,
+                allowedAcceptor: _terms.allowedAcceptor,
                 availableCreditLimit: 0,
                 utilizedCreditId: bytes32(0),
                 nonceSpace: 0,
@@ -124,7 +126,6 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
                     createHook: this, createHookData: "", repaymentHook: this, repaymentHookData: ""
                 })),
                 isProposerLender: true,
-                allowedAcceptor: address(0),
                 loanContract: address(loanContract)
             })
         ));
