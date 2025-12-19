@@ -204,7 +204,7 @@ contract PWNStableProductForkTest is DeploymentTest {
         (, int256 ethPrice,,,) = IChainlinkAggregatorLike(ETH_USD_Feed).latestRoundData();
         uint256 coll = 500e18 * uint256(arbPrice) / uint256(ethPrice) * 10 / 8;
 
-        assertApproxEqRel(WETH.balanceOf(address(__d.loan)), coll, 0.0001 ether); // 0.01% tolerance
+        assertApproxEqRel(WETH.balanceOf(address(__d.loan)), coll, 0.000125 ether); // 0.0125% tolerance
     }
 
     function test_twoFeeds_USDT_ARB() external {

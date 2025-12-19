@@ -4,7 +4,7 @@
         "chainlinkFeedRegistry": "0x8D5e90706E52a52853dA9A14fA1c63889a412851",
         "config": "0xd52a2898d61636bB3eEF0d145f05352FF543bdCC",
         "configSingleton": "0x1f5febF0efA3aD487508b6Cc7f39a0a54DE9De72",
-        "crowdsourceLenderVault": "0x41dCf7E9ECDBd3f0bc69cba50b49f1B37ae65Ca2",
+        "crowdsourceLenderVault": "0x77A63952572Dd0EAa7Fd21a3fDeaa80b4071A5e8",
         "hooks": {
             "compoundLender": "",
             "directLenderRepayment": "",
@@ -17,7 +17,7 @@
         "loanToken": "0x4440C069272cC34b80C7B11bEE657D0349Ba9C23",
         "products": {
             "stable": "",
-            "installments": "0x59Fd11B2518238E363bd4CC2aBb50455d1587966",
+            "installments": "0xE24D470DfDA38Ace1E154f55997DF34859892970",
             "fixed": "",
             "uniswapV3Individual": "",
             "uniswapV3Set": ""
