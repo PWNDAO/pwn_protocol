@@ -243,49 +243,49 @@ contract PWNCrowdsourceLenderVault_TotalAssets_Test is PWNCrowdsourceLenderVault
         _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
 
         _mockCreditBalance(address(crowdsource), 120 ether);
-        _mockAaveCreditBalance(address(crowdsource), 10 ether); // should not be used
+        _mockAaveCreditBalance(address(crowdsource), 10 ether); // repayments deposited to Aave
         _mockLoanRepaymentAmount(99 ether);
         _mockLoanStatus(2);
 
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOANStatus.selector));
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOANDebt.selector));
-        assertEq(crowdsource.totalAssets(), 120 ether + 99 ether);
+        assertEq(crowdsource.totalAssets(), 120 ether + 10 ether + 99 ether);
     }
 
     function test_shouldReturnLoanAndOwnedBalance_whenRunningStage_whenDefaultedLoan() external {
         _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
 
         _mockCreditBalance(address(crowdsource), 120 ether);
-        _mockAaveCreditBalance(address(crowdsource), 10 ether); // should not be used
-        _mockLoanRepaymentAmount(99 ether); // should not be used
+        _mockAaveCreditBalance(address(crowdsource), 10 ether); // repayments deposited to Aave
+        _mockLoanRepaymentAmount(99 ether); // should not be used (loan defaulted)
         _mockLoanStatus(4);
 
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOANStatus.selector));
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOANDebt.selector), 0);
-        assertEq(crowdsource.totalAssets(), 120 ether);
+        assertEq(crowdsource.totalAssets(), 120 ether + 10 ether);
     }
 
     function test_shouldReturnLoanAndOwnedBalance_whenRunningStage_whenRepaidLoan() external {
         _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
 
         _mockCreditBalance(address(crowdsource), 120 ether);
-        _mockAaveCreditBalance(address(crowdsource), 10 ether); // should not be used
-        _mockLoanRepaymentAmount(99 ether); // should not be used
+        _mockAaveCreditBalance(address(crowdsource), 10 ether); // repayments deposited to Aave
+        _mockLoanRepaymentAmount(99 ether); // should not be used (loan repaid)
         _mockLoanStatus(3);
 
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOANStatus.selector));
         vm.expectCall(loanContract, abi.encodeWithSelector(PWNLoan.getLOANDebt.selector), 0);
-        assertEq(crowdsource.totalAssets(), 120 ether);
+        assertEq(crowdsource.totalAssets(), 120 ether + 10 ether);
     }
 
     function test_shouldReturnOwnedBalance_whenEnding() external {
         _mockStage(PWNCrowdsourceLenderVault.Stage.ENDING);
 
         _mockCreditBalance(address(crowdsource), 120 ether);
-        _mockAaveCreditBalance(address(crowdsource), 10 ether); // should not be used
+        _mockAaveCreditBalance(address(crowdsource), 10 ether); // repayments deposited to Aave
         _mockLoanRepaymentAmount(99 ether); // should not be used
 
-        assertEq(crowdsource.totalAssets(), 120 ether);
+        assertEq(crowdsource.totalAssets(), 120 ether + 10 ether);
     }
 
 }
@@ -932,8 +932,10 @@ contract PWNCrowdsourceLenderVault_OnLoanCreated_Test is PWNCrowdsourceLenderVau
         );
 
         _mockStage(PWNCrowdsourceLenderVault.Stage.POOLING);
+        _mockCreditBalance(address(crowdsource), 0);
 
-        vm.expectCall(aave, abi.encodeWithSelector(IAaveLike.withdraw.selector, loan.creditAddress, type(uint256).max, address(crowdsource)));
+        // Only withdraw the principal amount, keep the rest in Aave
+        vm.expectCall(aave, abi.encodeWithSelector(IAaveLike.withdraw.selector, loan.creditAddress, loan.principal, address(crowdsource)));
 
         vm.prank(address(loanContract));
         crowdsource.onLoanCreated(1, address(crowdsource), loan.creditAddress, loan.principal, "");
@@ -953,9 +955,34 @@ contract PWNCrowdsourceLenderVault_OnLoanCreated_Test is PWNCrowdsourceLenderVau
 
 contract PWNCrowdsourceLenderVault_OnLoanRepaid_Test is PWNCrowdsourceLenderVaultTest {
 
+    function setUp() override public virtual {
+        super.setUp();
+
+        aaveReserveData.aTokenAddress = makeAddr("aToken");
+        _mockAaveReserveData(aaveReserveData);
+
+        crowdsource = new PWNCrowdsourceLenderVaultHarness(
+            PWNLoan(loanContract), PWNInstallmentsProduct(product), IAaveLike(aave), "Crowdsource", "CRWD", terms
+        );
+    }
+
+
+    function test_shouldRevert_whenSenderNotLoanContract() external {
+        vm.expectRevert();
+        crowdsource.onLoanRepaid(address(crowdsource), terms.creditAddress, 100 ether, "");
+    }
+
     function test_shouldReturnCorrectValue() external {
-        bytes32 returnValue = crowdsource.onLoanRepaid(address(0), address(0), 0, "");
+        vm.prank(address(loanContract));
+        bytes32 returnValue = crowdsource.onLoanRepaid(address(crowdsource), terms.creditAddress, 100 ether, "");
         assertEq(returnValue, LENDER_REPAYMENT_HOOK_RETURN_VALUE);
+    }
+
+    function test_shouldSupplyToAave() external {
+        vm.expectCall(aave, abi.encodeWithSelector(IAaveLike.supply.selector, terms.creditAddress, 100 ether, address(crowdsource), 0));
+
+        vm.prank(address(loanContract));
+        crowdsource.onLoanRepaid(address(crowdsource), terms.creditAddress, 100 ether, "");
     }
 
 }
