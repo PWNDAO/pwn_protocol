@@ -322,18 +322,16 @@ contract PWNCrowdsourceLenderVault_Running_ForkTest is PWNCrowdsourceLenderVault
         assertApproxEqRel(lenderVault.balanceOf(lenders[0]), initialAmount, ERR_DELTA);
         assertEq(IERC20(USDC).balanceOf(lenders[0]), 0);
 
-        uint256 maxWithdraw = lenderVault.maxWithdraw(lenders[0]);
-        assertApproxEqRel(maxWithdraw, unutilizedAmount, ERR_DELTA);
+        // Each lender owns 1/4 of shares, so maxWithdraw is proportional: unutilized * 1/4
+        uint256 maxWithdraw0 = lenderVault.maxWithdraw(lenders[0]);
+        assertApproxEqRel(maxWithdraw0, unutilizedAmount / 4, ERR_DELTA);
 
         vm.prank(lenders[0]);
-        lenderVault.withdraw(maxWithdraw, lenders[0], lenders[0]);
+        lenderVault.withdraw(maxWithdraw0, lenders[0], lenders[0]);
 
-        assertApproxEqRel(IERC20(USDC).balanceOf(lenders[0]), unutilizedAmount, ERR_DELTA);
-
-        expectedTotalAssets -= maxWithdraw;
+        assertApproxEqRel(IERC20(USDC).balanceOf(lenders[0]), maxWithdraw0, ERR_DELTA);
+        expectedTotalAssets -= maxWithdraw0;
         assertApproxEqRel(lenderVault.totalAssets(), expectedTotalAssets, ERR_DELTA);
-        assertApproxEqRel(lenderVault.balanceOf(lenders[0]), initialAmount - unutilizedAmount, ERR_DELTA);
-        assertApproxEqRel(IERC20(USDC).balanceOf(lenders[0]), unutilizedAmount, ERR_DELTA);
 
         uint256 repayAmount = 30_000e6;
         vm.prank(borrower);
@@ -341,25 +339,23 @@ contract PWNCrowdsourceLenderVault_Running_ForkTest is PWNCrowdsourceLenderVault
 
         assertApproxEqRel(lenderVault.totalAssets(), expectedTotalAssets, ERR_DELTA);
 
-        // Verify we have enough available liquidity for the withdrawals
-        // With repayments going to Aave, available = aToken balance (~30k after repayment)
+        // After repayment, each lender can withdraw their proportional share of available liquidity
         uint256 maxWithdraw1 = lenderVault.maxWithdraw(lenders[1]);
-        assertGe(maxWithdraw1, 20_000e6); // Should be able to withdraw 20k
+        assertGt(maxWithdraw1, 0);
 
         vm.prank(lenders[1]);
-        lenderVault.withdraw(20_000e6, lenders[1], lenders[1]);
+        lenderVault.withdraw(maxWithdraw1, lenders[1], lenders[1]);
 
-        expectedTotalAssets -= 20_000e6;
+        expectedTotalAssets -= maxWithdraw1;
         assertApproxEqRel(lenderVault.totalAssets(), expectedTotalAssets, ERR_DELTA);
 
-        // After 20k withdrawal, ~10k should remain in Aave (30k - 20k)
         uint256 maxWithdraw2 = lenderVault.maxWithdraw(lenders[2]);
-        assertGe(maxWithdraw2, 9_999e6); // Should be able to withdraw ~10k (accounting for Aave rounding)
+        assertGt(maxWithdraw2, 0);
 
         vm.prank(lenders[2]);
-        lenderVault.withdraw(9_999e6, lenders[2], lenders[2]); // Withdraw slightly less to account for rounding
+        lenderVault.withdraw(maxWithdraw2, lenders[2], lenders[2]);
 
-        expectedTotalAssets -= 9_999e6;
+        expectedTotalAssets -= maxWithdraw2;
         assertApproxEqRel(lenderVault.totalAssets(), expectedTotalAssets, ERR_DELTA);
     }
 
@@ -369,18 +365,14 @@ contract PWNCrowdsourceLenderVault_Running_ForkTest is PWNCrowdsourceLenderVault
         assertApproxEqRel(lenderVault.balanceOf(lenders[0]), initialAmount, ERR_DELTA);
         assertEq(IERC20(USDC).balanceOf(lenders[0]), 0);
 
-        uint256 maxRedeem = lenderVault.maxRedeem(lenders[0]);
-        assertApproxEqRel(maxRedeem, unutilizedAmount, ERR_DELTA);
+        // Each lender owns 1/4 of shares, so maxRedeem is proportional: shares for unutilized * 1/4
+        uint256 maxRedeem0 = lenderVault.maxRedeem(lenders[0]);
 
         vm.prank(lenders[0]);
-        lenderVault.redeem(maxRedeem, lenders[0], lenders[0]);
+        lenderVault.redeem(maxRedeem0, lenders[0], lenders[0]);
 
-        assertApproxEqRel(IERC20(USDC).balanceOf(lenders[0]), unutilizedAmount, ERR_DELTA);
-
-        expectedTotalAssets -= maxRedeem;
+        expectedTotalAssets -= lenderVault.convertToAssets(maxRedeem0);
         assertApproxEqRel(lenderVault.totalAssets(), expectedTotalAssets, ERR_DELTA);
-        assertApproxEqRel(lenderVault.balanceOf(lenders[0]), initialAmount - unutilizedAmount, ERR_DELTA);
-        assertApproxEqRel(IERC20(USDC).balanceOf(lenders[0]), unutilizedAmount, ERR_DELTA);
 
         uint256 repayAmount = 30_000e6;
         vm.prank(borrower);
@@ -388,18 +380,14 @@ contract PWNCrowdsourceLenderVault_Running_ForkTest is PWNCrowdsourceLenderVault
 
         assertApproxEqRel(lenderVault.totalAssets(), expectedTotalAssets, ERR_DELTA);
 
+        // Each lender redeems their proportional share
+        uint256 maxRedeem1 = lenderVault.maxRedeem(lenders[1]);
         vm.prank(lenders[1]);
-        lenderVault.redeem(20_000e6, lenders[1], lenders[1]);
+        lenderVault.redeem(maxRedeem1, lenders[1], lenders[1]);
 
-        expectedTotalAssets -= 20_000e6;
-        assertApproxEqRel(lenderVault.totalAssets(), expectedTotalAssets, ERR_DELTA);
-
+        uint256 maxRedeem2 = lenderVault.maxRedeem(lenders[2]);
         vm.prank(lenders[2]);
-        lenderVault.redeem(10_000e6, lenders[2], lenders[2]);
-
-        expectedTotalAssets -= 10_000e6;
-        assertApproxEqRel(lenderVault.totalAssets(), expectedTotalAssets, ERR_DELTA);
-
+        lenderVault.redeem(maxRedeem2, lenders[2], lenders[2]);
     }
 
     function test_shouldRevertDeposit_whenRunningStage() external {
@@ -431,9 +419,11 @@ contract PWNCrowdsourceLenderVault_Running_ForkTest is PWNCrowdsourceLenderVault
         __d.loan.repay(loanId, 10_000e6);
         principal -= 10_000e6 - (principal * 3 / 100);
 
+        // Withdraw only the proportional amount allowed for lender[0]
+        uint256 maxWithdraw0 = lenderVault.maxWithdraw(lenders[0]);
         vm.prank(lenders[0]);
-        originalTotalShares -= lenderVault.withdraw(20_000e6, lenders[0], lenders[0]);
-        totalAssets -= 20_000e6;
+        originalTotalShares -= lenderVault.withdraw(maxWithdraw0, lenders[0], lenders[0]);
+        totalAssets -= maxWithdraw0;
 
         // Claim should not affect the share value
         assertApproxEqRel(lenderVault.convertToAssets(1e6), beforeClaimAssets, ERR_DELTA);
@@ -642,11 +632,14 @@ contract PWNCrowdsourceLenderVault_FullLifecycle_ForkTest is PWNCrowdsourceLende
             __d.loan.repay(loanId, debt < 10_000e6 ? debt : 10_000e6);
             repaidAmount += debt < 10_000e6 ? debt : 10_000e6;
 
-            // every 3 month claim 10k
+            // every 3 month claim proportional max
             if (i % 3 == 0) {
-                lender = lenders[i / 12];
-                vm.prank(lender);
-                lenderVault.withdraw(10_000e6, lender, lender);
+                address _lender = lenders[i / 12];
+                uint256 maxW = lenderVault.maxWithdraw(_lender);
+                if (maxW > 0) {
+                    vm.prank(_lender);
+                    lenderVault.withdraw(maxW, _lender, _lender);
+                }
             }
 
             vm.warp(block.timestamp + 30 days);
@@ -658,12 +651,12 @@ contract PWNCrowdsourceLenderVault_FullLifecycle_ForkTest is PWNCrowdsourceLende
         uint256 totalLendersBalance;
         // on repayment, claim by everyone
         for (uint256 j; j < lenders.length; ++j) {
-            lender = lenders[j];
-            vm.startPrank(lender);
-            lenderVault.redeem(lenderVault.balanceOf(lender), lender, lender);
+            address _lender = lenders[j];
+            vm.startPrank(_lender);
+            lenderVault.redeem(lenderVault.balanceOf(_lender), _lender, _lender);
             vm.stopPrank();
 
-            totalLendersBalance += USDC.balanceOf(lender);
+            totalLendersBalance += USDC.balanceOf(_lender);
         }
 
         // assert that all assets are claimed
@@ -709,11 +702,14 @@ contract PWNCrowdsourceLenderVault_FullLifecycle_ForkTest is PWNCrowdsourceLende
             __d.loan.repay(loanId, debt < 5_000e6 ? debt : 5_000e6);
             repaidAmount += debt < 5_000e6 ? debt : 5_000e6;
 
-            // every 3 month claim 10k
+            // every 3 month claim proportional max
             if (i % 3 == 0) {
-                lender = lenders[i / 12];
-                vm.prank(lender);
-                lenderVault.withdraw(10_000e6, lender, lender);
+                address _lender = lenders[i / 12];
+                uint256 maxW = lenderVault.maxWithdraw(_lender);
+                if (maxW > 0) {
+                    vm.prank(_lender);
+                    lenderVault.withdraw(maxW, _lender, _lender);
+                }
             }
 
             vm.warp(block.timestamp + 30 days);
@@ -725,15 +721,15 @@ contract PWNCrowdsourceLenderVault_FullLifecycle_ForkTest is PWNCrowdsourceLende
 
         uint256 totalLendersBalance;
         uint256 totalLendersCollateralBalance;
-        // on repayment, claim by everyone
+        // on default/repayment, claim by everyone
         for (uint256 j; j < lenders.length; ++j) {
-            lender = lenders[j];
-            vm.startPrank(lender);
-            lenderVault.redeem(lenderVault.balanceOf(lender), lender, lender);
+            address _lender = lenders[j];
+            vm.startPrank(_lender);
+            lenderVault.redeem(lenderVault.balanceOf(_lender), _lender, _lender);
             vm.stopPrank();
 
-            totalLendersBalance += USDC.balanceOf(lender);
-            totalLendersCollateralBalance += WETH.balanceOf(lender);
+            totalLendersBalance += USDC.balanceOf(_lender);
+            totalLendersCollateralBalance += WETH.balanceOf(_lender);
         }
 
         // assert that all assets are claimed

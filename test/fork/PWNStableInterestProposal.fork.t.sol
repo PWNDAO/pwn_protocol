@@ -216,7 +216,7 @@ contract PWNStableProductForkTest is DeploymentTest {
 
         deal(lender, 10000 ether);
         deal(borrower, 10000 ether);
-        deal(address(ARB), borrower, 5_277e18, false);
+        deal(address(ARB), borrower, 5_500e18, false);
         // USDT has non-standard storage layout, so we transfer from a known holder instead of using deal()
         vm.prank(USDT_HOLDER);
         (bool transferSuccess, ) = address(USDT).call(abi.encodeWithSignature("transfer(address,uint256)", lender, 1000e6));

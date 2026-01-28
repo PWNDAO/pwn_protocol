@@ -191,7 +191,8 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
 
         max = _convertToAssets(balanceOf(owner), Math.Rounding.Down);
         if (_stage == Stage.RUNNING) {
-            max = Math.min(max, _totalAvailableLiquidity());
+            // Limit withdrawal to proportional share of available liquidity based on share ownership
+            max = Math.min(max, _proportionalAvailableLiquidity(owner));
         }
     }
 
@@ -199,7 +200,8 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     function maxRedeem(address owner) public view override returns (uint256 max) {
         max = balanceOf(owner);
         if (stage() == Stage.RUNNING) {
-            max = Math.min(max, _convertToShares(_totalAvailableLiquidity(), Math.Rounding.Down));
+            // Limit redemption to proportional share of available liquidity based on share ownership
+            max = Math.min(max, _convertToShares(_proportionalAvailableLiquidity(owner), Math.Rounding.Down));
         }
     }
 
@@ -282,6 +284,23 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
             liquidity += IERC20(aAsset).balanceOf(address(this));
         }
         return liquidity;
+    }
+
+    /**
+     * @notice Calculates the proportional share of available liquidity for an owner based on their share ownership.
+     * @dev During RUNNING stage, each lender can only claim their proportional share of partial repayments.
+     * @param owner The address of the share owner.
+     * @return The proportional amount of available liquidity the owner can claim.
+     */
+    function _proportionalAvailableLiquidity(address owner) internal view returns (uint256) {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) return 0;
+
+        uint256 ownerShares = balanceOf(owner);
+        uint256 totalLiquidity = _totalAvailableLiquidity();
+
+        // Calculate proportional share: totalLiquidity * ownerShares / totalSupply
+        return totalLiquidity.mulDiv(ownerShares, _totalSupply, Math.Rounding.Down);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
