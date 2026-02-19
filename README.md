@@ -73,10 +73,6 @@ PWN is deployed on the following chains:
 
 We welcome contributions from the community. If you're a developer interested in contributing to PWN, please see our developer docs for more information.
 
-## PWN is Hiring!
-
-We're always looking for talented individuals to join our team. If you're passionate about decentralized finance and want to contribute to the future of P2P lending, check out our job postings [here](https://www.notion.so/PWN-is-hiring-f5a49899369045e39f41fc7e4c7b5633).
-
 ## Contact
 
 If you have any questions or suggestions, feel free to reach out to us. We're always happy to hear from our users.
