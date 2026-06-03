@@ -41,7 +41,14 @@ abstract contract DeploymentTest is Deployments, Test {
     address borrower;
 
     function setUp() public virtual {
-        _loadDeployedAddresses();
+        _loadCreationCode(vm.projectRoot());
+        _loadExternalAddresses(vm.projectRoot(), "1");
+
+        // note: there is issue that tests are failing if only some of the contracts/products
+        //  are deployed (e.g. only Installments product is deployed, while Stable product not yet)
+        //  and because of this we are calling the _protocolNotDeployedOnSelectedChain() fallback
+        // _loadDeployedAddresses();
+        _protocolNotDeployedOnSelectedChain();
 
         (lender, lenderPK) = makeAddrAndKey("lender");
         (borrower, borrowerPK) = makeAddrAndKey("borrower");

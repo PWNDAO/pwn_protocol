@@ -216,7 +216,7 @@
         "deployerSafe": "0x42Cad20c964067f8e8b5c3E13fd0aa3C20a964C4",
         "deployer": "0x706c9F2dd328E2C01483eCF705D2D9708F4aB727",
         "chainlinkL2SequencerUptimeFeed": "0x0000000000000000000000000000000000000000",
-        "weth": "0x7b79995e5f793a07bc00c21412e50ecae098e7f9",
+        "weth": "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9",
         "isL2": false,
         "uniswapV3Factory": "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
         "uniswapV3NFTPositionManager": "0x1238536071E1c677A632429e3655c799b22cDA52",

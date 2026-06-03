@@ -210,7 +210,9 @@ library Chainlink {
         // Note: registry reverts with "Feed not found" for no registered feed
 
         (, int256 price,, uint256 updatedAt,) = feed.latestRoundData();
-        if (price < 0) {
+        // TODO should we adjust this to <= also in other Product contracts?
+        // TODO should we revert on any other place if encountered price is 0 or negative, or is this okay to do just here?
+        if (price <= 0) {
             revert ChainlinkFeedReturnedNegativePrice({ feed: address(feed), price: price, updatedAt: updatedAt });
         }
         if (block.timestamp - updatedAt > MAX_CHAINLINK_FEED_PRICE_AGE) {

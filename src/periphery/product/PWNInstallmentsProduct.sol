@@ -59,7 +59,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
     bytes32 public immutable DOMAIN_SEPARATOR;
     /** @dev EIP-712 proposal type hash.*/
     bytes32 public constant PROPOSAL_TYPEHASH = keccak256(
-        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 postponement,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address loanContract)"
+        "Proposal(address collateralAddress,address creditAddress,address[] feedIntermediaryDenominations,bool[] feedInvertFlags,uint256 loanToValue,uint256 interestAPR,uint256 postponement,uint256 duration,uint256 minCreditAmount,uint256 availableCreditLimit,bytes32 utilizedCreditId,uint256 nonceSpace,uint256 nonce,uint256 expiration,bytes32 proposerSpecHash,bool isProposerLender,address allowedAcceptor,address loanContract)"
     );
 
     /**
@@ -81,6 +81,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
      * @param expiration Expiration timestamp of the proposal.
      * @param proposerSpecHash Hash of proposer-specific data.
      * @param isProposerLender Boolean indicating if the proposer is the lender.
+     * @param allowedAcceptor Address allowed to accept the proposal. If zero address, anyone except the proposer can accept.
      * @param loanContract The address of the loan contract to be used.
      */
     struct Proposal {
@@ -106,6 +107,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
         // General proposal
         bytes32 proposerSpecHash;
         bool isProposerLender;
+        address allowedAcceptor;
         address loanContract;
     }
 
@@ -161,6 +163,8 @@ contract PWNInstallmentsProduct is IPWNProduct {
     error LoanToValueZero();
     /** @notice Thrown when the liquidator is not the LOAN token owner.*/
     error LiquidatorNotLoanOwner(address owner, address liquidator, address loanContract, uint256 loanId);
+    /** @notice Thrown when caller is not allowed to accept the proposal.*/
+    error CallerNotAllowedAcceptor(address current, address allowed);
 
 
 
@@ -219,6 +223,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
         uint256 loanToValue
     ) public view returns (uint256) {
         if (loanToValue == 0) revert LoanToValueZero();
+        // throws if returned price from chainlink pracle is negative or zero
         return _chainlink.convertDenomination({
             amount: creditAmount,
             oldDenomination: creditAddress,
@@ -235,7 +240,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
 
     function acceptProposal(
         uint256 loanId,
-        address /* acceptor */,
+        address acceptor,
         address proposer,
         bytes calldata proposalData
     ) external returns (Terms memory loanTerms) {
@@ -248,6 +253,11 @@ contract PWNInstallmentsProduct is IPWNProduct {
         }
         if (!hub.hasTag(proposal.loanContract, PWNHubTags.ACTIVE_LOAN)) {
             revert AddressMissingHubTag({ addr: proposal.loanContract, tag: PWNHubTags.ACTIVE_LOAN });
+        }
+
+        // Check allowed acceptor
+        if (proposal.allowedAcceptor != address(0) && acceptor != proposal.allowedAcceptor) {
+            revert CallerNotAllowedAcceptor({ current: acceptor, allowed: proposal.allowedAcceptor });
         }
 
         // Check proposal is not expired
@@ -266,6 +276,11 @@ contract PWNInstallmentsProduct is IPWNProduct {
         // Check duration
         if (proposal.duration < MIN_DURATION) {
             revert DurationTooShort();
+        }
+
+        // TODO should here be >= or just >
+        if (proposal.postponement >= proposal.duration) {
+            revert PostponementBiggerThanDuration();
         }
 
         // Check min credit amount
@@ -458,6 +473,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
         uint256 expiration;
         bytes32 proposerSpecHash;
         bool isProposerLender;
+        address allowedAcceptor;
         address loanContract;
     }
 
@@ -479,6 +495,7 @@ contract PWNInstallmentsProduct is IPWNProduct {
             expiration: proposal.expiration,
             proposerSpecHash: proposal.proposerSpecHash,
             isProposerLender: proposal.isProposerLender,
+            allowedAcceptor: proposal.allowedAcceptor,
             loanContract: proposal.loanContract
         });
         return abi.encode(erc712Proposal);

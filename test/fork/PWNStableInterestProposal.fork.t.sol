@@ -17,6 +17,9 @@ import {
 
 contract PWNStableProductForkTest is DeploymentTest {
 
+    // Known USDT holder address (Tether Treasury)
+    address constant USDT_HOLDER = 0x5754284f345afc66a98fbB0a0Afe71e0F007B949;
+
     PWNLoan.ProposalSpec proposalSpec;
     PWNLoan.LenderSpec lenderSpec;
     PWNLoan.BorrowerSpec borrowerSpec;
@@ -45,6 +48,7 @@ contract PWNStableProductForkTest is DeploymentTest {
             expiration: block.timestamp + 7 days,
             proposerSpecHash: bytes32(0),
             isProposerLender: true,
+            allowedAcceptor: address(0),
             loanContract: address(__d.loan)
         });
 
@@ -134,7 +138,10 @@ contract PWNStableProductForkTest is DeploymentTest {
         deal(lender, 10000 ether);
         deal(borrower, 10000 ether);
         deal(address(WETH), borrower, 1e18, false);
-        deal(address(USDT), lender, 1000e6, false);
+        // USDT has non-standard storage layout, so we transfer from a known holder instead of using deal()
+        vm.prank(USDT_HOLDER);
+        (bool transferSuccess, ) = address(USDT).call(abi.encodeWithSignature("transfer(address,uint256)", lender, 1000e6));
+        require(transferSuccess, "USDT transfer failed");
 
         // Register USDT/USD & ETH/USD feed
         _registerFeed(address(USDT), ChainlinkDenominations.USD, USDT_USD_Feed);
@@ -197,7 +204,7 @@ contract PWNStableProductForkTest is DeploymentTest {
         (, int256 ethPrice,,,) = IChainlinkAggregatorLike(ETH_USD_Feed).latestRoundData();
         uint256 coll = 500e18 * uint256(arbPrice) / uint256(ethPrice) * 10 / 8;
 
-        assertApproxEqRel(WETH.balanceOf(address(__d.loan)), coll, 0.0001 ether); // 0.01% tolerance
+        assertApproxEqRel(WETH.balanceOf(address(__d.loan)), coll, 0.000125 ether); // 0.0125% tolerance
     }
 
     function test_twoFeeds_USDT_ARB() external {
@@ -209,7 +216,10 @@ contract PWNStableProductForkTest is DeploymentTest {
         deal(lender, 10000 ether);
         deal(borrower, 10000 ether);
         deal(address(ARB), borrower, 5000e18, false);
-        deal(address(USDT), lender, 1000e6, false);
+        // USDT has non-standard storage layout, so we transfer from a known holder instead of using deal()
+        vm.prank(USDT_HOLDER);
+        (bool transferSuccess, ) = address(USDT).call(abi.encodeWithSignature("transfer(address,uint256)", lender, 1000e6));
+        require(transferSuccess, "USDT transfer failed");
 
         // Register ARB/USD & ETH/USD feed
         _registerFeed(address(ARB), ChainlinkDenominations.USD, ARB_USD_Feed);

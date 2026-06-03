@@ -94,7 +94,8 @@ contract PWNCrowdsourceLenderVaultForkTest is DeploymentTest {
             postponement: 120 days,
             duration: 730 days,
             minCreditAmount: 150_000 * 10 ** decimals,
-            expiration: block.timestamp + 60 days
+            expiration: block.timestamp + 60 days,
+            allowedAcceptor: address(0)
         });
         terms.feedIntermediaryDenominations[0] = USD;
         terms.feedInvertFlags[0] = false;
@@ -122,6 +123,7 @@ contract PWNCrowdsourceLenderVaultForkTest is DeploymentTest {
             expiration: terms.expiration,
             proposerSpecHash: __d.loan.getLenderSpecHash(lenderSpec),
             isProposerLender: true,
+            allowedAcceptor: terms.allowedAcceptor,
             loanContract: address(__d.loan)
         });
         acceptorValues = PWNInstallmentsProduct.AcceptorValues({

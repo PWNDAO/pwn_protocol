@@ -31,6 +31,8 @@ import { PWNDirectLenderRepaymentHook } from "pwn/periphery/hook/lender/PWNDirec
 import { PWNRevokedNonce } from "pwn/periphery/auxiliary/PWNRevokedNonce.sol";
 import { PWNUtilizedCredit } from "pwn/periphery/auxiliary/PWNUtilizedCredit.sol";
 
+import { PWNCrowdsourceLenderVault } from "pwn/periphery/crowdsource/PWNCrowdsourceLenderVault.sol";
+
 
 interface IPWNDeployer {
     function owner() external returns (address);
@@ -72,6 +74,7 @@ abstract contract Deployments is CommonBase {
         IChainlinkFeedRegistryLike chainlinkFeedRegistry;
         PWNConfig config;
         PWNConfig configSingleton;
+        PWNCrowdsourceLenderVault crowdsourceLenderVault;
         Hooks hooks;
         PWNHub hub;
         PWNLoan loan;
@@ -113,25 +116,126 @@ abstract contract Deployments is CommonBase {
 
     function _loadDeployedAddresses() internal {
         string memory root = vm.projectRoot();
+        string memory chainIdKey = block.chainid.toString();
 
+        // Load creation code
+        _loadCreationCode(root);
+
+        // Load external addresses
+        _loadExternalAddresses(root, chainIdKey);
+
+        // Load deployment addresses
+        _loadDeploymentAddresses(root, chainIdKey);
+    }
+
+    function _loadCreationCode(string memory root) internal {
         string memory creationJson = vm.readFile(string.concat(root, deploymentsSubpath, "/deployments/creation/creationCode.json"));
-        bytes memory rawCreation = creationJson.parseRaw(".");
-        __cc = abi.decode(rawCreation, (CreationCode));
+        __cc.categoryRegistry = creationJson.readBytes(".categoryRegistry");
+        __cc.chainlinkFeedRegistry = creationJson.readBytes(".chainlinkFeedRegistry");
+        __cc.config = creationJson.readBytes(".config");
+        __cc.configSingleton_v1_2 = creationJson.readBytes(".configSingleton_v1_2");
+        __cc.hub = creationJson.readBytes(".hub");
+        __cc.loanToken = creationJson.readBytes(".loanToken");
+        __cc.revokedNonce = creationJson.readBytes(".revokedNonce");
+        __cc.utilizedCredit = creationJson.readBytes(".utilizedCredit");
+    }
 
+    function _loadExternalAddresses(string memory root, string memory chainIdKey) internal {
         string memory externalJson = vm.readFile(string.concat(root, deploymentsSubpath, "/deployments/external/external.json"));
-        bytes memory rawExternal = externalJson.parseRaw(string.concat(".", block.chainid.toString()));
-        __e = abi.decode(rawExternal, (External));
+        string memory externalKey = string.concat(".", chainIdKey);
+        __e.aave = IAaveLike(externalJson.readAddress(string.concat(externalKey, ".aave")));
+        __e.adminTimelock = externalJson.readAddress(string.concat(externalKey, ".adminTimelock"));
+        __e.chainlinkL2SequencerUptimeFeed = externalJson.readAddress(string.concat(externalKey, ".chainlinkL2SequencerUptimeFeed"));
+        __e.dao = externalJson.readAddress(string.concat(externalKey, ".dao"));
+        __e.daoSafe = externalJson.readAddress(string.concat(externalKey, ".daoSafe"));
+        __e.deployer = IPWNDeployer(externalJson.readAddress(string.concat(externalKey, ".deployer")));
+        __e.deployerSafe = externalJson.readAddress(string.concat(externalKey, ".deployerSafe"));
+        __e.isL2 = externalJson.readBool(string.concat(externalKey, ".isL2"));
+        __e.protocolTimelock = externalJson.readAddress(string.concat(externalKey, ".protocolTimelock"));
+        __e.uniswapV3Factory = externalJson.readAddress(string.concat(externalKey, ".uniswapV3Factory"));
+        __e.uniswapV3NFTPositionManager = externalJson.readAddress(string.concat(externalKey, ".uniswapV3NFTPositionManager"));
+        __e.weth = externalJson.readAddress(string.concat(externalKey, ".weth"));
+    }
 
+    function _loadDeploymentAddresses(string memory root, string memory chainIdKey) private {
         string memory deploymentsJson = vm.readFile(string.concat(root, deploymentsSubpath, "/deployments/protocol/v1.5.json"));
-        bytes memory rawDeployment = deploymentsJson.parseRaw(string.concat(".", block.chainid.toString()));
-
+        string memory deploymentKey = string.concat(".", chainIdKey);
+        
+        // Check if deployment exists for this chain by checking if raw bytes exist
+        bytes memory rawDeployment = deploymentsJson.parseRaw(deploymentKey);
+        
         if (rawDeployment.length > 0) {
             wasPredeployedOnFork = true;
-            __d = abi.decode(rawDeployment, (Deployment));
+            _loadDeploymentTopLevel(deploymentsJson, deploymentKey);
+            _loadDeploymentProducts(deploymentsJson, deploymentKey);
+            _loadDeploymentHooks(deploymentsJson, deploymentKey);
         } else {
             wasPredeployedOnFork = false;
             _protocolNotDeployedOnSelectedChain();
         }
+    }
+
+    function _safeReadAddress(string memory json, string memory key) private pure returns (address) {
+        string memory addrStr = json.readString(key);
+        if (bytes(addrStr).length == 0) {
+            return address(0);
+        }
+        return json.readAddress(key);
+    }
+
+    function _loadDeploymentTopLevel(string memory deploymentsJson, string memory deploymentKey) private {
+        __d.categoryRegistry = MultiTokenCategoryRegistry(_safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".categoryRegistry")));
+        __d.chainlinkFeedRegistry = IChainlinkFeedRegistryLike(_safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".chainlinkFeedRegistry")));
+        __d.config = PWNConfig(_safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".config")));
+        __d.configSingleton = PWNConfig(_safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".configSingleton")));
+        __d.hub = PWNHub(_safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".hub")));
+        __d.loanToken = PWNLOAN(_safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".loanToken")));
+
+        address addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".crowdsourceLenderVault"));
+        if (addr != address(0)) __d.crowdsourceLenderVault = PWNCrowdsourceLenderVault(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".loan"));
+        if (addr != address(0)) __d.loan = PWNLoan(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".revokedNonce"));
+        if (addr != address(0)) __d.revokedNonce = PWNRevokedNonce(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".utilizedCredit"));
+        if (addr != address(0)) __d.utilizedCredit = PWNUtilizedCredit(addr);
+    }
+
+    function _loadDeploymentProducts(string memory deploymentsJson, string memory deploymentKey) private {
+        address addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".products.stable"));
+        if (addr != address(0)) __d.products.stable = PWNStableProduct(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".products.installments"));
+        if (addr != address(0)) __d.products.installments = PWNInstallmentsProduct(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".products.fixed"));
+        if (addr != address(0)) __d.products._fixed = PWNFixedProduct(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".products.uniswapV3Individual"));
+        if (addr != address(0)) __d.products.uniswapV3Individual = PWNUniswapV3IndividualProduct(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".products.uniswapV3Set"));
+        if (addr != address(0)) __d.products.uniswapV3Set = PWNUniswapV3SetProduct(addr);
+    }
+
+    function _loadDeploymentHooks(string memory deploymentsJson, string memory deploymentKey) private {
+        address addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".hooks.aaveLender"));
+        if (addr != address(0)) __d.hooks.aaveLender = PWNAaveLenderHook(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".hooks.compoundLender"));
+        if (addr != address(0)) __d.hooks.compoundLender = PWNCompoundLenderHook(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".hooks.directLenderRepayment"));
+        if (addr != address(0)) __d.hooks.directLenderRepayment = PWNDirectLenderRepaymentHook(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".hooks.refinanceBorrowerCreate"));
+        if (addr != address(0)) __d.hooks.refinanceBorrowerCreate = PWNRefinanceBorrowerCreateHook(addr);
+
+        addr = _safeReadAddress(deploymentsJson, string.concat(deploymentKey, ".hooks.vaultLender"));
+        if (addr != address(0)) __d.hooks.vaultLender = PWN4626VaultLenderHook(addr);
     }
 
     function _protocolNotDeployedOnSelectedChain() internal virtual {
