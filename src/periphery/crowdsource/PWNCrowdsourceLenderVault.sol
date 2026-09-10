@@ -5,6 +5,7 @@ import { MultiToken } from "MultiToken/MultiToken.sol";
 
 import { ERC4626, ERC20, IERC20, IERC20Metadata, Math, SafeERC20 } from "openzeppelin/token/ERC20/extensions/ERC4626.sol";
 import { IERC721Receiver } from "openzeppelin/token/ERC721/IERC721Receiver.sol";
+import { ReentrancyGuard } from "openzeppelin/security/ReentrancyGuard.sol";
 
 import {
     PWNLoan, LOANStatus, PWNLOAN,
@@ -19,7 +20,7 @@ import { IAaveLike } from "pwn/periphery/interfaces/IAaveLike.sol";
  * @title PWNCrowdsourceLenderVault
  * @notice A vault that pools assets to lend through a PWNLoan contract.
  */
-contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderRepaymentHook, IERC721Receiver {
+contract PWNCrowdsourceLenderVault is ERC4626, ReentrancyGuard, IPWNLenderCreateHook, IPWNLenderRepaymentHook, IERC721Receiver {
     using Math for uint256;
 
     /** @notice The PWNLoan contract through which the loan is created.*/
@@ -51,11 +52,26 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
      */
     bool internal loanEnded;
 
+    uint256 internal constant LIQUIDITY_PRECISION = 1e27;
+    /** @notice Cumulative cash allocated per share during the running stage.*/
+    uint256 internal liquidityPerShare;
+    /** @notice Vault cash already allocated, excluding amounts withdrawn.*/
+    uint256 internal accountedLiquidity;
+
+    struct LiquidityAllocation {
+        uint256 index;
+        uint256 claimable;
+    }
+
+    /** @notice Unclaimed cash and the allocation index last applied to each share owner.*/
+    mapping (address => LiquidityAllocation) internal liquidityAllocations;
+
     /**
      * @notice The stages of the vault.
      * @dev The vault can be in the POOLING, RUNNING, or ENDING stage.
      * POOLING: The vault is pooling assets. Anyone can freely deposit and withdraw. The vault automatically supplies assets to Aave, if possible.
-     * RUNNING: The vault has funded a loan and is running. No new deposits are allowed. The vault automatically claims repayments on every withdrawal.
+     * RUNNING: The vault has funded a loan. No new deposits are allowed. New cash is allocated proportionally
+     * to current shares; withdrawals consume that allocation and transfers carry its unclaimed portion.
      * ENDING: The funded loan ended. Only redeeming is allowed. The vault automatically claims the remaining loan amount or defaulted collateral.
      */
     enum Stage {
@@ -158,14 +174,16 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     /** @inheritdoc ERC4626*/
     function totalAssets() public view override returns (uint256) {
         uint256 additionalAssets;
-        // Note: assuming aToken:token ratio is always 1:1
-        // aToken balance is always part of total assets (deposits in POOLING, repayments in RUNNING/ENDING)
-        if (aAsset != address(0)) {
-            additionalAssets = IERC20(aAsset).balanceOf(address(this));
-        }
         Stage _stage = stage();
-        if (_stage == Stage.RUNNING && loanContract.getLOANStatus(loanId) == LOANStatus.RUNNING) {
-            additionalAssets += loanContract.getLOANDebt(loanId);
+        if (_stage == Stage.POOLING) {
+            if (aAsset != address(0)) {
+                // Note: assuming aToken:token ratio is always 1:1
+                additionalAssets = IERC20(aAsset).balanceOf(address(this));
+            }
+        } else if (_stage == Stage.RUNNING) {
+            if (loanContract.getLOANStatus(loanId) == LOANStatus.RUNNING) {
+                additionalAssets = loanContract.getLOANDebt(loanId);
+            }
         }
         return _availableLiquidity() + additionalAssets;
     }
@@ -191,8 +209,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
 
         max = _convertToAssets(balanceOf(owner), Math.Rounding.Down);
         if (_stage == Stage.RUNNING) {
-            // Limit withdrawal to proportional share of available liquidity based on share ownership
-            max = Math.min(max, _proportionalAvailableLiquidity(owner));
+            max = Math.min(max, _claimableLiquidity(owner));
         }
     }
 
@@ -200,8 +217,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     function maxRedeem(address owner) public view override returns (uint256 max) {
         max = balanceOf(owner);
         if (stage() == Stage.RUNNING) {
-            // Limit redemption to proportional share of available liquidity based on share ownership
-            max = Math.min(max, _convertToShares(_proportionalAvailableLiquidity(owner), Math.Rounding.Down));
+            max = Math.min(max, _convertToShares(_claimableLiquidity(owner), Math.Rounding.Down));
         }
     }
 
@@ -233,21 +249,21 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     // # Actions
 
     /** @inheritdoc ERC4626*/
-    function deposit(uint256 assets, address receiver) public override returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256 shares) {
         shares = previewDeposit(assets);
         require(assets <= maxDeposit(receiver), "ERC4626: deposit more than max");
         _deposit(_msgSender(), receiver, assets, shares);
     }
 
     /** @inheritdoc ERC4626*/
-    function mint(uint256 shares, address receiver) public override returns (uint256 assets) {
+    function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256 assets) {
         assets = previewMint(shares);
         require(shares <= maxMint(receiver), "ERC4626: mint more than max");
         _deposit(_msgSender(), receiver, assets, shares);
     }
 
     /** @inheritdoc ERC4626*/
-    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256 shares) {
+    function withdraw(uint256 assets, address receiver, address owner) public override nonReentrant returns (uint256 shares) {
         _claimLoanIfPossible();
         shares = previewWithdraw(assets);
         require(assets <= maxWithdraw(owner), "ERC4626: withdraw more than max");
@@ -255,7 +271,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     }
 
     /** @inheritdoc ERC4626*/
-    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address owner) public override nonReentrant returns (uint256 assets) {
         _claimLoanIfPossible();
 
         uint256 collAssets;
@@ -278,29 +294,54 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
         return IERC20(asset()).balanceOf(address(this));
     }
 
-    function _totalAvailableLiquidity() internal view returns (uint256) {
+    /**
+     * @dev Allocate only newly received cash. Burning shares or withdrawing previously allocated cash
+     * does not redistribute another lender's allocation. Includes unutilized capital and direct donations.
+     */
+    function _currentLiquidityPerShare() internal view returns (uint256 index) {
+        index = liquidityPerShare;
         uint256 liquidity = _availableLiquidity();
-        if (aAsset != address(0)) {
-            liquidity += IERC20(aAsset).balanceOf(address(this));
+        uint256 supply = totalSupply();
+        if (liquidity > accountedLiquidity && supply > 0) {
+            index += (liquidity - accountedLiquidity).mulDiv(LIQUIDITY_PRECISION, supply);
         }
-        return liquidity;
     }
 
-    /**
-     * @notice Calculates the proportional share of available liquidity for an owner based on their share ownership.
-     * @dev During RUNNING stage, each lender can only claim their proportional share of partial repayments.
-     * @param owner The address of the share owner.
-     * @return The proportional amount of available liquidity the owner can claim.
-     */
-    function _proportionalAvailableLiquidity(address owner) internal view returns (uint256) {
-        uint256 _totalSupply = totalSupply();
-        if (_totalSupply == 0) return 0;
+    function _claimableLiquidity(address owner) internal view returns (uint256) {
+        LiquidityAllocation memory allocation = liquidityAllocations[owner];
+        return allocation.claimable + balanceOf(owner).mulDiv(
+            _currentLiquidityPerShare() - allocation.index, LIQUIDITY_PRECISION
+        );
+    }
 
-        uint256 ownerShares = balanceOf(owner);
-        uint256 totalLiquidity = _totalAvailableLiquidity();
+    function _updateLiquidity() internal {
+        liquidityPerShare = _currentLiquidityPerShare();
+        accountedLiquidity = _availableLiquidity();
+    }
 
-        // Calculate proportional share: totalLiquidity * ownerShares / totalSupply
-        return totalLiquidity.mulDiv(ownerShares, _totalSupply, Math.Rounding.Down);
+    function _accrueLiquidity(address owner) internal {
+        LiquidityAllocation storage allocation = liquidityAllocations[owner];
+        allocation.claimable += balanceOf(owner).mulDiv(
+            liquidityPerShare - allocation.index, LIQUIDITY_PRECISION
+        );
+        allocation.index = liquidityPerShare;
+    }
+
+    /** @dev Unclaimed cash follows transferred shares; already withdrawn cash cannot be claimed again.*/
+    function _transfer(address from, address to, uint256 amount) internal override nonReentrant {
+        if (stage() == Stage.RUNNING && from != to && amount > 0) {
+            _requireUnlockedLoan();
+            uint256 ownerShares = balanceOf(from);
+            require(amount <= ownerShares, "ERC20: transfer amount exceeds balance");
+            _updateLiquidity();
+            _accrueLiquidity(from);
+            _accrueLiquidity(to);
+
+            uint256 transferredLiquidity = liquidityAllocations[from].claimable.mulDiv(amount, ownerShares);
+            liquidityAllocations[from].claimable -= transferredLiquidity;
+            liquidityAllocations[to].claimable += transferredLiquidity;
+        }
+        super._transfer(from, to, amount);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
@@ -311,26 +352,21 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     }
 
     function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares) internal override {
-        if (aAsset != address(0)) {
-            Stage _stage = stage();
-            if (_stage == Stage.POOLING) {
-                // During POOLING, all assets are in Aave
-                aave.withdraw(asset(), assets, address(this));
-            } else if (_stage == Stage.RUNNING || _stage == Stage.ENDING) {
-                // During RUNNING/ENDING, repayments and unutilized capital are in Aave.
-                // Withdraw from Aave if we don't have enough cash.
-                // Use try/catch so withdrawals of available cash still work if Aave is down.
-                uint256 availableCash = _availableLiquidity();
-                if (availableCash < assets) {
-                    try aave.withdraw(asset(), assets - availableCash, address(this)) {} catch {}
-                }
-            }
+        if (stage() == Stage.RUNNING) {
+            _updateLiquidity();
+            _accrueLiquidity(owner);
+            liquidityAllocations[owner].claimable -= assets;
+            accountedLiquidity -= assets;
+        }
+        if (aAsset != address(0) && stage() == Stage.POOLING) {
+            aave.withdraw(asset(), assets, address(this));
         }
         super._withdraw(caller, receiver, owner, assets, shares);
     }
 
     function _claimLoanIfPossible() internal {
         if (stage() == Stage.RUNNING) {
+            _requireUnlockedLoan();
             uint8 status = loanContract.getLOANStatus(loanId);
             if (status != LOANStatus.RUNNING) {
                 loanEnded = true;
@@ -339,6 +375,11 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
                 loanContract.liquidate(loanId, "");
             }
         }
+    }
+
+    /** @dev Funding and repayment callbacks must not allocate cash while the loan is being settled.*/
+    function _requireUnlockedLoan() internal view {
+        require(!loanContract.loanLock(loanId), "PWNCrowdsourceLenderVault: loan context locked");
     }
 
 
@@ -403,9 +444,9 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
         uint256 loanId_,
         address lender,
         address creditAddress,
-        uint256 principal,
+        uint256 /* principal */,
         bytes calldata lenderData
-    ) external returns (bytes32) {
+    ) external nonReentrant returns (bytes32) {
         require(msg.sender == address(loanContract));
         require(loanId == 0);
 
@@ -415,11 +456,7 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
 
         loanId = loanId_;
         if (aAsset != address(0)) {
-            // Withdraw only the principal needed for the loan, keep the rest earning yield in Aave
-            uint256 availableCash = _availableLiquidity();
-            if (availableCash < principal) {
-                aave.withdraw(asset(), principal - availableCash, address(this));
-            }
+            aave.withdraw(asset(), type(uint256).max, address(this));
         }
 
         return LENDER_CREATE_HOOK_RETURN_VALUE;
@@ -428,19 +465,12 @@ contract PWNCrowdsourceLenderVault is ERC4626, IPWNLenderCreateHook, IPWNLenderR
     /** @inheritdoc IPWNLenderRepaymentHook*/
     function onLoanRepaid(
         address /* lender */,
-        address creditAddress,
-        uint256 repayment,
+        address /* creditAddress */,
+        uint256 /* repayment */,
         bytes calldata /* lenderData */
-    ) external returns (bytes32) {
-        require(msg.sender == address(loanContract));
-
-        // Deposit repayment to Aave to earn yield while waiting for withdrawals/redemptions.
-        // Use try/catch to avoid triggering PWNLoan's unclaimedRepayment fallback if Aave is down.
-        // If supply fails, the repayment stays as cash in the vault.
-        if (aAsset != address(0)) {
-            try aave.supply(creditAddress, repayment, address(this), 0) {} catch {}
-        }
-
+    ) external pure returns (bytes32) {
+        // Note: no need to validate anything, the hook only accepts repayments
+        // This guarantees that the loan unclaimed amount is always zero
         return LENDER_REPAYMENT_HOOK_RETURN_VALUE;
     }
 

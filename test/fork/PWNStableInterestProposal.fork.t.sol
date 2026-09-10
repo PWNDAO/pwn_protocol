@@ -210,13 +210,12 @@ contract PWNStableProductForkTest is DeploymentTest {
     function test_twoFeeds_USDT_ARB() external {
         IERC20 ARB = IERC20(0xB50721BCf8d664c30412Cfbc6cf7a15145234ad1);
         IERC20 USDT = IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
-
         address ARB_USD_Feed = 0x31697852a68433DbCc2Ff612c516d69E3D9bd08F;
         address USDT_USD_Feed = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
 
         deal(lender, 10000 ether);
         deal(borrower, 10000 ether);
-        deal(address(ARB), borrower, 5_500e18, false);
+        deal(address(ARB), borrower, 5000e18, false);
         // USDT has non-standard storage layout, so we transfer from a known holder instead of using deal()
         vm.prank(USDT_HOLDER);
         (bool transferSuccess, ) = address(USDT).call(abi.encodeWithSignature("transfer(address,uint256)", lender, 1000e6));
