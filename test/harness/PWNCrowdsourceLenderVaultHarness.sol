@@ -34,6 +34,14 @@ contract PWNCrowdsourceLenderVaultHarness is PWNCrowdsourceLenderVault {
 
     // # Workarounds
 
+    function workaround_setLoanId(uint256 _loanId) external {
+        loanId = _loanId;
+    }
+
+    function workaround_setLoanEnded(bool _loanEnded) external {
+        loanEnded = _loanEnded;
+    }
+
     function workaround_setConvertToSharesRatio(uint256 _convertToSharesRatio) external {
         convertToSharesRatio = _convertToSharesRatio;
     }

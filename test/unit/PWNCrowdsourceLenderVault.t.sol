@@ -72,6 +72,7 @@ abstract contract PWNCrowdsourceLenderVaultTest is Test {
         vm.mockCall(terms.collateralAddress, abi.encodeWithSelector(IERC20Metadata.decimals.selector), abi.encode(18));
         vm.mockCall(loanContract, abi.encodeWithSelector(PWNProposalManager.makeProposalAcceptable.selector), abi.encode(proposalHash));
         vm.mockCall(loanContract, abi.encodeWithSelector(PWNLoan.getLenderSpecHash.selector), abi.encode(keccak256("lenderSpecHash")));
+        vm.mockCall(loanContract, abi.encodeWithSelector(bytes4(keccak256("loanLock(uint256)"))), abi.encode(false));
 
         loan = PWNLoan.LOAN({
             borrower: makeAddr("borrower"),
@@ -136,11 +137,11 @@ abstract contract PWNCrowdsourceLenderVaultTest is Test {
 
 
     function _storeLoanId(uint256 _loanId) internal {
-        vm.store(address(crowdsource), bytes32(uint256(5)), bytes32(_loanId));
+        crowdsource.workaround_setLoanId(_loanId);
     }
 
     function _storeLoanEnded(bool _ended) internal {
-        vm.store(address(crowdsource), bytes32(uint256(6)), bytes32(uint256(_ended ? 1 : 0)));
+        crowdsource.workaround_setLoanEnded(_ended);
     }
 
     function _storeReceiptBalance(address _owner, uint256 _balance) internal {
@@ -352,20 +353,24 @@ contract PWNCrowdsourceLenderVault_MaxWithdraw_Test is PWNCrowdsourceLenderVault
     function test_shouldReturnUserLiquidity_whenRunningStage_whenLessThanAvailableLiquidity() external {
         _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
         _storeReceiptBalance(lender[0], 4 ether);
-        _mockCreditBalance(address(crowdsource), 300 ether);
+        _storeReceiptTotalSupply(10 ether);
+        _mockCreditBalance(address(crowdsource), 1000 ether);
         crowdsource.workaround_setConvertToAssetsRatio(50e4);
 
+        // user assets = 4 * 50 = 200, proportional liquidity = 1000 * 4 / 10 = 400
         assertEq(crowdsource.maxWithdraw(lender[0]), 200 ether);
     }
 
-    function test_shouldReturnAvailableLiquidity_whenRunningStage_whenLessThanUserLiquidity() external {
+    function test_shouldReturnProportionalLiquidity_whenRunningStage_whenLessThanUserLiquidity() external {
         _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
         _storeReceiptBalance(lender[0], 4 ether);
+        _storeReceiptTotalSupply(10 ether);
         _mockCreditBalance(address(crowdsource), 150 ether);
         _mockLoanStatus(2);
         crowdsource.workaround_setConvertToAssetsRatio(50e4);
 
-        assertEq(crowdsource.maxWithdraw(lender[0]), 150 ether);
+        // user assets = 4 * 50 = 200, proportional liquidity = 150 * 4 / 10 = 60
+        assertEq(crowdsource.maxWithdraw(lender[0]), 60 ether);
     }
 
     function test_shouldBeZero_whenEndingStage() external {
@@ -395,20 +400,26 @@ contract PWNCrowdsourceLenderVault_MaxRedeem_Test is PWNCrowdsourceLenderVaultTe
     function test_shouldReturnUserLiquidity_whenRunningStage_whenLessThanAvailableLiquidity() external {
         _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
         _storeReceiptBalance(lender[0], 2 ether);
-        _mockCreditBalance(address(crowdsource), 300 ether);
+        _storeReceiptTotalSupply(5 ether);
+        _mockCreditBalance(address(crowdsource), 1000 ether);
         crowdsource.workaround_setConvertToSharesRatio(0.01e4);
 
+        // shares = 2, proportional liquidity = 1000 * 2 / 5 = 400, convertToShares(400) = 400 * 0.01 = 4
+        // min(2, 4) = 2
         assertEq(crowdsource.maxRedeem(lender[0]), 2 ether);
     }
 
-    function test_shouldReturnAvailableLiquidity_whenRunningStage_whenLessThanUserLiquidity() external {
+    function test_shouldReturnProportionalLiquidity_whenRunningStage_whenLessThanUserLiquidity() external {
         _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
         _storeReceiptBalance(lender[0], 4 ether);
+        _storeReceiptTotalSupply(10 ether);
         _mockCreditBalance(address(crowdsource), 200 ether);
         _mockLoanStatus(2);
         crowdsource.workaround_setConvertToSharesRatio(0.01e4);
 
-        assertEq(crowdsource.maxRedeem(lender[0]), 2 ether);
+        // shares = 4, proportional liquidity = 200 * 4 / 10 = 80, convertToShares(80) = 80 * 0.01 = 0.8 ether
+        // min(4, 0.8) = 0.8 ether
+        assertEq(crowdsource.maxRedeem(lender[0]), 0.8 ether);
     }
 
 }
@@ -634,6 +645,7 @@ contract PWNCrowdsourceLenderVault_Withdraw_Test is PWNCrowdsourceLenderVaultTes
 
         _mockCreditBalance(address(crowdsource), 1000 ether);
         _storeReceiptBalance(lender[0], 100 ether);
+        _storeReceiptTotalSupply(100 ether);
         crowdsource.workaround_setConvertToAssetsRatio(2e4);
         crowdsource.workaround_setConvertToSharesRatio(0.5e4);
     }
@@ -683,6 +695,26 @@ contract PWNCrowdsourceLenderVault_Withdraw_Test is PWNCrowdsourceLenderVaultTes
         crowdsource.withdraw(100 ether, lender[0], lender[0]);
     }
 
+    function test_shouldRevert_whenExceedingProportionalShare_whenRunningStage() external {
+        _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
+        _mockLoanStatus(2);
+
+        // lender[0] has 100 shares out of 400 total (25%)
+        _storeReceiptBalance(lender[0], 100 ether);
+        _storeReceiptTotalSupply(400 ether);
+        _mockCreditBalance(address(crowdsource), 200 ether);
+
+        // Proportional share = 200 * 100 / 400 = 50 ether
+        // User asset value = 100 * 2 = 200 ether (convertToAssetsRatio = 2e4)
+        // maxWithdraw = min(200, 50) = 50
+        assertEq(crowdsource.maxWithdraw(lender[0]), 50 ether);
+
+        // Try to withdraw more than proportional share
+        vm.expectRevert("ERC4626: withdraw more than max");
+        vm.prank(lender[0]);
+        crowdsource.withdraw(51 ether, lender[0], lender[0]);
+    }
+
     function test_shouldWithdraw() external {
         _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
         _mockLoanStatus(2);
@@ -712,10 +744,31 @@ contract PWNCrowdsourceLenderVault_Redeem_Test is PWNCrowdsourceLenderVaultTest 
         _mockCreditBalance(address(crowdsource), 1000 ether);
         _mockCollateralBalance(address(crowdsource), 0);
         _storeReceiptBalance(lender[0], 100 ether);
+        _storeReceiptTotalSupply(100 ether);
         crowdsource.workaround_setConvertToAssetsRatio(2e4);
         crowdsource.workaround_setConvertToSharesRatio(0.5e4);
     }
 
+
+    function test_shouldRevert_whenExceedingProportionalShare_whenRunningStage() external {
+        _mockStage(PWNCrowdsourceLenderVault.Stage.RUNNING);
+        _mockLoanStatus(2);
+
+        // lender[0] has 100 shares out of 400 total (25%)
+        _storeReceiptBalance(lender[0], 100 ether);
+        _storeReceiptTotalSupply(400 ether);
+        _mockCreditBalance(address(crowdsource), 200 ether);
+
+        // Proportional share of liquidity = 200 * 100 / 400 = 50 ether
+        // convertToShares(50) = 50 * 0.5 = 25 shares
+        // maxRedeem = min(100, 25) = 25
+        assertEq(crowdsource.maxRedeem(lender[0]), 25 ether);
+
+        // Try to redeem more than proportional share
+        vm.expectRevert("ERC4626: redeem more than max");
+        vm.prank(lender[0]);
+        crowdsource.redeem(26 ether, lender[0], lender[0]);
+    }
 
     function test_shouldWithdrawFromAave_whenPoolingStage() external {
         aaveReserveData.aTokenAddress = makeAddr("aToken");
